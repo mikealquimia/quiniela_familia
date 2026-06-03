@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pitaya Mundialista</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- LOGIN -->
+  <div id="screen-login">
+    <div class="login-hero">
+      <div class="trophy-icon">🏆</div>
+      <h1>Pitaya Mundialista 2026</h1>
+      <p>Selecciona tu nombre e ingresa tu PIN</p>
+    </div>
+    <div class="login-card">
+      <div class="form-group">
+        <label>¿Quién eres?</label>
+        <select id="login-select">
+          <option value="">— Selecciona tu nombre —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>PIN (4 dígitos)</label>
+        <div class="pin-container">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-0" oninput="pinNext(this,1)" onkeydown="pinBack(event,this,null)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-1" oninput="pinNext(this,2)" onkeydown="pinBack(event,this,0)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-2" oninput="pinNext(this,3)" onkeydown="pinBack(event,this,1)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-3" oninput="pinNext(this,null)" onkeydown="pinBack(event,this,2)" onkeypress="if(event.key==='Enter')doLogin()">
+        </div>
+        <p id="pin-error" class="pin-error hidden">PIN incorrecto, intenta de nuevo</p>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="doLogin()">
+        <i class="ti ti-login"></i> Entrar
+      </button>
+      <p class="login-hint">¿Primera vez? Pide al admin que te registre</p>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="screen-main" class="hidden">
+    <header class="app-header">
+      <div class="header-left">
+        <span class="header-logo">🏆</span>
+        <span class="header-title">Pitaya Mundialista 2026</span>
+      </div>
+      <div class="header-right">
+        <div id="user-avatar" class="avatar"></div>
+        <span id="user-name-display" class="header-username"></span>
+        <span id="admin-badge" class="badge badge-warning hidden">admin</span>
+        <button class="btn btn-sm" onclick="openChangePinModal()" title="Cambiar PIN">
+          <i class="ti ti-key"></i>
+        </button>
+        <button class="btn btn-sm btn-icon" onclick="doLogout()" title="Cerrar sesión">
+          <i class="ti ti-logout"></i>
+        </button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" onclick="showTab('tab-quiniela',this)">
+        <i class="ti ti-ball-football"></i> Mi quiniela
+      </button>
+      <button class="tab" onclick="showTab('tab-tabla',this)">
+        <i class="ti ti-trophy"></i> Tabla
+      </button>
+      <button class="tab" onclick="showTab('tab-stats',this)">
+        <i class="ti ti-chart-bar"></i> Estadísticas
+      </button>
+      <button class="tab" onclick="showTab('tab-comparar',this)">
+        <i class="ti ti-eye"></i> Comparar
+      </button>
+      <button class="tab hidden" id="tab-admin-btn" onclick="showTab('tab-admin',this)">
+        <i class="ti ti-settings"></i> Admin
+      </button>
+    </nav>
+
+    <!-- QUINIELA TAB -->
+    <div id="tab-quiniela" class="tab-content">
+      <div id="quiniela-info" class="alert alert-info">
+        <i class="ti ti-info-circle"></i> Puedes editar tu quiniela hasta 1 hora antes de cada partido.
+      </div>
+      <div id="matches-list"></div>
+    </div>
+
+    <!-- TABLA TAB -->
+    <div id="tab-tabla" class="tab-content hidden">
+      <div class="stat-grid" id="tabla-stats"></div>
+      <div class="card">
+        <div class="section-title">Tabla de posiciones</div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:36px">#</th>
+                <th>Jugador</th>
+                <th class="text-right">Pts</th>
+                <th class="text-right">Exactos</th>
+                <th class="text-right">Resultados</th>
+                <th class="text-right">Jugados</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATS TAB -->
+    <div id="tab-stats" class="tab-content hidden">
+      <div class="card" style="margin-bottom:1rem">
+        <div class="section-title">Quinielas comparadas</div>
+        <div id="all-picks-container"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Rendimiento por participante</div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Jugador</th>
+                <th class="text-right">% Exactos</th>
+                <th class="text-right">% Resultado</th>
+                <th class="text-right">Racha</th>
+              </tr>
+            </thead>
+            <tbody id="stats-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPARAR TAB -->
+    <div id="tab-comparar" class="tab-content hidden">
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="section-title" style="margin:0"><i class="ti ti-eye"></i> Quinielas por partido</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
+            <button class="btn btn-sm filter-btn active" onclick="filterComparar('all',this)">Todos</button>
+            <button class="btn btn-sm filter-btn" onclick="filterComparar('pending',this)">Por jugar</button>
+            <button class="btn btn-sm filter-btn" onclick="filterComparar('done',this)">Finalizados</button>
+          </div>
+        </div>
+      </div>
+      <div id="comparar-list"></div>
+    </div>
+
+    <!-- ADMIN TAB -->
+    <div id="tab-admin" class="tab-content hidden">
+      <!-- API Sync Panel -->
+      <div class="card" style="margin-bottom:1rem;background:var(--accent-bg);border-color:var(--accent)">
+        <div class="section-title" style="color:var(--accent-text)"><i class="ti ti-world-download"></i> Sincronización automática</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary btn-sm" id="btn-import" onclick="importFixtures()">
+            <i class="ti ti-calendar-down"></i> Importar partidos del Mundial
+          </button>
+          <button class="btn btn-sm" id="btn-sync" onclick="syncResults()" style="background:var(--success-bg);border-color:var(--success-text);color:var(--success-text)">
+            <i class="ti ti-refresh"></i> Actualizar resultados
+          </button>
+          <span style="font-size:11px;color:var(--accent-text)">Partidos: openfootball (gratis) · Resultados: API-Football (requiere key gratuita)</span>
+        </div>
+      </div>
+
+      <div class="admin-grid">
+        <div class="card">
+          <div class="section-title"><i class="ti ti-user-plus"></i> Agregar participante</div>
+          <div class="form-group">
+            <label>Nombre</label>
+            <input type="text" id="new-user-name" placeholder="Nombre del jugador">
+          </div>
+          <div class="form-group">
+            <label>PIN (4 dígitos)</label>
+            <input type="text" inputmode="numeric" maxlength="4" id="new-user-pin" placeholder="ej. 1234">
+          </div>
+          <div class="form-group checkbox-row">
+            <input type="checkbox" id="new-user-admin">
+            <label for="new-user-admin">Es administrador</label>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="addUser()">
+            <i class="ti ti-plus"></i> Agregar
+          </button>
+        </div>
+        <div class="card">
+          <div class="section-title"><i class="ti ti-adjustments"></i> Sistema de puntos</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Pts resultado correcto</label>
+              <input type="number" id="pts-result" value="1" min="0">
+            </div>
+            <div class="form-group">
+              <label>Pts marcador exacto</label>
+              <input type="number" id="pts-exact" value="3" min="0">
+            </div>
+          </div>
+          <button class="btn btn-sm" onclick="savePoints()">
+            <i class="ti ti-check"></i> Guardar
+          </button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:1rem">
+        <div class="section-title"><i class="ti ti-calendar-plus"></i> Agregar partido</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Equipo local</label>
+            <input type="text" id="m-home" placeholder="ej. México">
+          </div>
+          <div class="form-group">
+            <label>Equipo visitante</label>
+            <input type="text" id="m-away" placeholder="ej. Argentina">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Fecha y hora</label>
+            <input type="datetime-local" id="m-date">
+          </div>
+          <div class="form-group">
+            <label>Fase</label>
+            <select id="m-phase">
+              <option>Fase de grupos</option>
+              <option>Octavos de final</option>
+              <option>Cuartos de final</option>
+              <option>Semifinal</option>
+              <option>Final</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addMatch()">
+          <i class="ti ti-plus"></i> Agregar partido
+        </button>
+      </div>
+
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+          <div class="section-title" style="margin:0"><i class="ti ti-list-check"></i> Partidos y resultados</div>
+          <button class="btn btn-sm btn-danger" onclick="openDeleteAllModal()">
+            <i class="ti ti-trash"></i> Borrar todos
+          </button>
+        </div>
+        <div id="admin-matches-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-title"><i class="ti ti-users"></i> Participantes</div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>PIN</th>
+                <th>Rol</th>
+                <th>Quiniela</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL EDITAR PARTIDO -->
+  <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="section-title" style="margin:0"><i class="ti ti-edit"></i> Editar partido</span>
+        <button class="btn btn-sm btn-icon" onclick="closeModal()"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Equipo local</label>
+          <input type="text" id="edit-home" placeholder="ej. México">
+        </div>
+        <div class="form-group">
+          <label>Equipo visitante</label>
+          <input type="text" id="edit-away" placeholder="ej. Argentina">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fecha y hora</label>
+          <input type="datetime-local" id="edit-date">
+        </div>
+        <div class="form-group">
+          <label>Fase</label>
+          <select id="edit-phase">
+            <option>Fase de grupos</option>
+            <option>Octavos de final</option>
+            <option>Cuartos de final</option>
+            <option>Semifinal</option>
+            <option>Tercer lugar</option>
+            <option>Final</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+        <button class="btn btn-sm" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="saveEdit()"><i class="ti ti-check"></i> Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CONFIRMAR ELIMINAR -->
+  <div id="modal-delete-overlay" class="modal-overlay hidden" onclick="closeDeleteModal()">
+    <div class="modal-box" style="max-width:360px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="section-title" style="margin:0;color:var(--danger-text)"><i class="ti ti-trash"></i> Eliminar partido</span>
+      </div>
+      <p style="font-size:14px;margin-bottom:1rem" id="delete-confirm-text">¿Seguro que quieres eliminar este partido?</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-sm" onclick="closeDeleteModal()">Cancelar</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete()"><i class="ti ti-trash"></i> Sí, eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL BORRAR TODOS LOS PARTIDOS -->
+  <div id="modal-deleteall-overlay" class="modal-overlay hidden" onclick="closeDeleteAllModal()">
+    <div class="modal-box" style="max-width:380px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="section-title" style="margin:0;color:var(--danger-text)"><i class="ti ti-alert-triangle"></i> ¿Borrar todos los partidos?</span>
+      </div>
+      <p style="font-size:14px;margin-bottom:6px">Esta acción eliminará <strong>todos los partidos</strong> y sus resultados. Las quinielas de los participantes también se borrarán.</p>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:1rem">Esta acción no se puede deshacer.</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-sm" onclick="closeDeleteAllModal()">Cancelar</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDeleteAll()"><i class="ti ti-trash"></i> Sí, borrar todo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CAMBIAR PIN -->
+  <div id="modal-changepin-overlay" class="modal-overlay hidden" onclick="closeChangePinModal()">
+    <div class="modal-box" style="max-width:360px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="section-title" style="margin:0"><i class="ti ti-key"></i> Cambiar mi PIN</span>
+        <button class="btn btn-sm btn-icon" onclick="closeChangePinModal()"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="form-group">
+        <label>PIN actual</label>
+        <div class="pin-container">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-cur-0" oninput="cpNext('cur',this,1)" onkeydown="cpBack('cur',event,this,null)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-cur-1" oninput="cpNext('cur',this,2)" onkeydown="cpBack('cur',event,this,0)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-cur-2" oninput="cpNext('cur',this,3)" onkeydown="cpBack('cur',event,this,1)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-cur-3" oninput="cpNext('cur',this,null)" onkeydown="cpBack('cur',event,this,2)">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Nuevo PIN</label>
+        <div class="pin-container">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-new-0" oninput="cpNext('new',this,1)" onkeydown="cpBack('new',event,this,null)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-new-1" oninput="cpNext('new',this,2)" onkeydown="cpBack('new',event,this,0)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-new-2" oninput="cpNext('new',this,3)" onkeydown="cpBack('new',event,this,1)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-new-3" oninput="cpNext('new',this,null)" onkeydown="cpBack('new',event,this,2)">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Confirmar nuevo PIN</label>
+        <div class="pin-container">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-cfm-0" oninput="cpNext('cfm',this,1)" onkeydown="cpBack('cfm',event,this,null)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-cfm-1" oninput="cpNext('cfm',this,2)" onkeydown="cpBack('cfm',event,this,0)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-cfm-2" oninput="cpNext('cfm',this,3)" onkeydown="cpBack('cfm',event,this,1)">
+          <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="cp-cfm-3" oninput="cpNext('cfm',this,null)" onkeydown="cpBack('cfm',event,this,2)">
+        </div>
+      </div>
+      <p id="cp-error" class="pin-error hidden"></p>
+      <p id="cp-success" class="hidden" style="color:var(--success-text);font-size:12px;text-align:center;margin-top:6px">✓ PIN cambiado exitosamente</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn btn-sm" onclick="closeChangePinModal()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="saveNewPin()"><i class="ti ti-check"></i> Cambiar PIN</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
