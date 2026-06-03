@@ -2,12 +2,12 @@
 // IMPORTANTE: Reemplaza estos valores con los de tu proyecto Firebase
 // Instrucciones en README.md
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDtKXEWtu2z8cPNqX3EvYG7Qe6Ic5hOfzo",
-  authDomain: "quiniela-pitaya-tech-2026.firebaseapp.com",
-  projectId: "quiniela-pitaya-tech-2026",
-  storageBucket: "quiniela-pitaya-tech-2026.firebasestorage.app",
-  messagingSenderId: "100399049705",
-  appId: "1:100399049705:web:5169f2dfcd4d5995023978"
+  apiKey: "AIzaSyAAQ5LBKV9nav8FRm8HJIvZU6wmV5tT-RE",
+  authDomain: "quiniela-familia-2026-8c4a9.firebaseapp.com",
+  projectId: "quiniela-familia-2026-8c4a9",
+  storageBucket: "quiniela-familia-2026-8c4a9.firebasestorage.app",
+  messagingSenderId: "230703417525",
+  appId: "1:230703417525:web:859a9e538f6998b0fc96fc"
 };
 
 
