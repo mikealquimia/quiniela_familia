@@ -759,10 +759,12 @@ function renderComparar(filter = 'all') {
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:8px">`;
 
-      // Each user's pick
+      // Each user's pick — solo visible cuando el partido está bloqueado (< 1h) o ya tiene resultado.
+      // El usuario actual siempre puede ver su propio pronóstico.
       state.users.forEach(u => {
         const pick = state.picks[u.id]?.[m.id];
         const hasPick = pick && pick.home !== '' && pick.away !== '';
+        const isCurrentUser = state.currentUser && u.id === state.currentUser.id;
         const color = colorFor(u.name);
         let badgeCls = 'badge-gray';
         let pts = 0;
@@ -773,13 +775,20 @@ function renderComparar(filter = 'all') {
           else badgeCls = 'badge-danger';
         }
 
+        // Los pronósticos ajenos se ocultan hasta 1 hora antes del partido
+        const pickVisible = locked || hasResult || isCurrentUser;
+
+        const pickLabel = pickVisible
+          ? `<span class="badge ${badgeCls}" style="font-size:11px">
+               ${hasPick ? pick.home + '–' + pick.away : '–'}
+               ${hasResult && hasPick ? ' · +' + pts : ''}
+             </span>`
+          : `<span class="badge badge-gray" style="font-size:11px;opacity:0.6" title="Se revela 1 hora antes del partido">🔒</span>`;
+
         html += `<div style="display:flex;align-items:center;gap:6px;background:var(--bg-secondary);border-radius:var(--radius);padding:5px 10px">
           <div class="avatar" style="width:22px;height:22px;font-size:9px;background:${color}30;color:${color};flex-shrink:0">${initials(u.name)}</div>
           <span style="font-size:12px;font-weight:500">${u.name.split(' ')[0]}</span>
-          <span class="badge ${badgeCls}" style="font-size:11px">
-            ${hasPick ? pick.home + '–' + pick.away : '–'}
-            ${hasResult && hasPick ? ' · +' + pts : ''}
-          </span>
+          ${pickLabel}
         </div>`;
       });
 
