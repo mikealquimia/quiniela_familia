@@ -236,7 +236,36 @@ function getStreak(userId) {
   return streak;
 }
 
-let _matchDateFilter = 'all'; // 'all' | 'today' | date string 'YYYY-MM-DD'
+let _matchDateFilter = 'today'; // 'all' | 'today' | date string 'YYYY-MM-DD'
+
+// Guatemala is UTC-6, always (no DST)
+// Returns today's date string in Guatemala time: 'YYYY-MM-DD'
+function todayGuatemala() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' });
+}
+
+// Get the Guatemala date ('YYYY-MM-DD') of a stored match datetime.
+// Datetimes are stored as 'YYYY-MM-DDTHH:MM:SS' in UTC (from import) or as
+// typed by the admin in datetime-local (treated as local browser time).
+// We display times using the browser's locale but compare dates in Guatemala time.
+function matchDateGT(datetime) {
+  // If it already has a Z or +/- timezone suffix, parse as-is.
+  // Otherwise assume it's the UTC value we stored during import.
+  const d = new Date(datetime.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(datetime)
+    ? datetime
+    : datetime + 'Z'); // treat stored value as UTC
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' });
+}
+
+// Format a match datetime for display in Guatemala time
+function fmtDatetimeGT(datetime) {
+  const d = new Date(datetime.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(datetime)
+    ? datetime
+    : datetime + 'Z');
+  const day = d.toLocaleDateString('es', { timeZone: 'America/Guatemala', weekday: 'short', month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString('es', { timeZone: 'America/Guatemala', hour: '2-digit', minute: '2-digit' });
+  return day + ' ' + time;
+}
 
 // ─── Render: Matches ─────────────────────────────────────────────────────────
 function renderMatches() {
@@ -252,28 +281,32 @@ function renderMatches() {
     return;
   }
 
-  // Build date filter UI
-  const today = new Date().toISOString().slice(0, 10);
-  const dates = [...new Set(state.matches.map(m => m.datetime.slice(0, 10)))].sort();
-  let filterHtml = `<div class="date-filter-bar">
-    <button class="btn btn-sm filter-btn ${_matchDateFilter === 'all' ? 'active' : ''}" onclick="filterMatches('all',this)">Todos</button>
-    <button class="btn btn-sm filter-btn ${_matchDateFilter === 'today' ? 'active' : ''}" onclick="filterMatches('today',this)">Hoy</button>`;
+  const today = todayGuatemala();
+  // Unique sorted dates (in Guatemala time)
+  const dates = [...new Set(state.matches.map(m => matchDateGT(m.datetime)))].sort();
+
+  // Build select dropdown
+  let selectHtml = `<div class="date-filter-bar">
+    <label style="font-size:13px;color:var(--text-secondary);font-weight:500">Fecha:</label>
+    <select class="date-select" onchange="filterMatches(this.value)">
+      <option value="all" ${_matchDateFilter === 'all' ? 'selected' : ''}>Todos los partidos</option>
+      <option value="today" ${_matchDateFilter === 'today' ? 'selected' : ''}>Hoy (${new Date(today + 'T12:00:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })})</option>`;
   dates.forEach(d => {
-    const label = new Date(d + 'T12:00:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' });
-    filterHtml += `<button class="btn btn-sm filter-btn ${_matchDateFilter === d ? 'active' : ''}" onclick="filterMatches('${d}',this)">${label}</button>`;
+    const label = new Date(d + 'T12:00:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+    selectHtml += `<option value="${d}" ${_matchDateFilter === d ? 'selected' : ''}>${label}</option>`;
   });
-  filterHtml += `</div>`;
+  selectHtml += `</select></div>`;
 
   // Apply filter
-  let matches = state.matches;
+  let matches = [...state.matches];
   if (_matchDateFilter === 'today') {
-    matches = matches.filter(m => m.datetime.slice(0, 10) === today);
+    matches = matches.filter(m => matchDateGT(m.datetime) === today);
   } else if (_matchDateFilter !== 'all') {
-    matches = matches.filter(m => m.datetime.slice(0, 10) === _matchDateFilter);
+    matches = matches.filter(m => matchDateGT(m.datetime) === _matchDateFilter);
   }
 
   if (matches.length === 0) {
-    container.innerHTML = filterHtml + `<div style="text-align:center;padding:3rem;color:var(--text-secondary)">
+    container.innerHTML = selectHtml + `<div style="text-align:center;padding:3rem;color:var(--text-secondary)">
       <i class="ti ti-calendar-off" style="font-size:28px;display:block;margin-bottom:10px"></i>
       No hay partidos en esta fecha
     </div>`;
@@ -281,7 +314,7 @@ function renderMatches() {
   }
 
   const phases = [...new Set(matches.map(m => m.phase))];
-  let html = filterHtml;
+  let html = selectHtml;
 
   phases.forEach(phase => {
     const ms = matches.filter(m => m.phase === phase);
@@ -303,9 +336,7 @@ function renderMatches() {
           statusBadge = `<span class="badge badge-gray">+0</span>`;
       }
 
-      const dt = new Date(m.datetime);
-      const dtStr = dt.toLocaleDateString('es', { weekday: 'short', month: 'short', day: 'numeric' })
-        + ' ' + dt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+      const dtStr = fmtDatetimeGT(m.datetime);
 
       const inputsOrPick = locked || resultKnown
         ? `<span style="font-size:14px;font-weight:600;min-width:64px;text-align:center;color:var(--text-secondary)">
@@ -340,7 +371,7 @@ function renderMatches() {
   container.innerHTML = html;
 }
 
-function filterMatches(filter, btn) {
+function filterMatches(filter) {
   _matchDateFilter = filter;
   renderMatches();
 }
@@ -452,9 +483,7 @@ function renderAdminMatches() {
   }
 
   container.innerHTML = state.matches.map(m => {
-    const dt = new Date(m.datetime);
-    const dtStr = dt.toLocaleDateString('es', { day: 'numeric', month: 'short' })
-      + ' ' + dt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+    const dtStr = fmtDatetimeGT(m.datetime);
     const hasResult = m.result && m.result.home !== '';
 
     return `<div class="admin-match-row">
@@ -649,9 +678,11 @@ async function importFixtures() {
       if (!home || !away) return;
       if (existingKeys.has(home + '|' + away)) return;
 
-      // Parse datetime - time comes as "13:00 UTC-6", convert to local ISO
+      // Parse datetime - time comes as "13:00 UTC-6" (Guatemala time)
+      // Convert to UTC by adding 6 hours, store as UTC ISO string
       const timeStr = (m.time || '12:00').split(' ')[0];
-      const datetime = m.date + 'T' + timeStr + ':00';
+      const localDt = new Date(m.date + 'T' + timeStr + ':00-06:00'); // parse as UTC-6
+      const datetime = localDt.toISOString().slice(0, 19) + 'Z'; // store as UTC
 
       // Phase from round
       const round = (m.round || 'Fase de grupos').toLowerCase();
@@ -690,6 +721,7 @@ async function importFixtures() {
 }
 
 // ─── Actualizar resultados desde API-Football ────────────────────────────────
+// ─── Actualizar resultados desde API-Football ────────────────────────────────
 async function syncResults() {
   if (!API_FOOTBALL_KEY) {
     alert('Agrega tu API key de API-Football en app.js primero.\nRegistrate gratis en: https://dashboard.api-football.com/register');
@@ -698,80 +730,79 @@ async function syncResults() {
   const btn = document.getElementById('btn-sync');
   btn.textContent = 'Actualizando...';
   btn.disabled = true;
-  try {
-    // Use a CORS proxy to bypass browser restrictions
-    const apiUrl = 'https://v3.football.api-sports.io/fixtures?league=1&season=2026&status=FT';
-    const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(apiUrl);
-    
-    const res = await fetch(proxyUrl);
-    const proxyData = await res.json();
-    
-    let data;
-    try {
-      data = JSON.parse(proxyData.contents);
-    } catch(e) {
-      // Try direct if proxy fails
-      const directRes = await fetch(apiUrl, {
-        headers: {
-          'x-rapidapi-key': API_FOOTBALL_KEY,
-          'x-rapidapi-host': 'v3.football.api-sports.io'
-        }
-      });
-      data = await directRes.json();
-    }
-    
-    if (!data.response) throw new Error('Respuesta inválida de API-Football');
 
-    // Helper: normalize team name for fuzzy matching
-    function normName(s) {
-      return s.toLowerCase()
-        .replace(/\b(de|la|los|las|el|the)\b/g, '')
-        .replace(/[^a-z0-9]/g, '').trim();
+  try {
+    const TARGET = 'https://v3.football.api-sports.io/fixtures?league=1&season=2026&status=FT';
+    const HEADERS = {
+      'x-rapidapi-key': API_FOOTBALL_KEY,
+      'x-rapidapi-host': 'v3.football.api-sports.io'
+    };
+
+    let data = null;
+
+    // Strategy 1: direct call (works if the API has CORS headers for your key)
+    try {
+      const r = await fetch(TARGET, { headers: HEADERS });
+      if (r.ok) { const j = await r.json(); if (j.response) data = j; }
+    } catch(_) {}
+
+    // Strategy 2: corsproxy.io (reenvía headers, diferente a allorigins)
+    if (!data) {
+      try {
+        const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(TARGET), { headers: HEADERS });
+        if (r.ok) { const j = await r.json(); if (j.response) data = j; }
+      } catch(_) {}
+    }
+
+    // Strategy 3: thingproxy (otro proxy confiable)
+    if (!data) {
+      try {
+        const r = await fetch('https://thingproxy.freeboard.io/fetch/' + TARGET, { headers: HEADERS });
+        if (r.ok) { const j = await r.json(); if (j.response) data = j; }
+      } catch(_) {}
+    }
+
+    if (!data) throw new Error('No se pudo conectar. Verifica tu API key o intenta más tarde.');
+
+    // Normalize name for fuzzy matching
+    function norm(s) {
+      return (s || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/\b(de|la|los|las|el|the|republic|united|states|of)\b/g, '')
+        .replace(/[^a-z0-9]/g, '');
     }
 
     let updated = 0;
-    data.response.forEach(fixture => {
-      const home = fixture.teams.home.name;
-      const away = fixture.teams.away.name;
-      const scoreHome = String(fixture.goals.home ?? '');
-      const scoreAway = String(fixture.goals.away ?? '');
-      if (scoreHome === '' || scoreAway === '') return;
+    data.response.forEach(fix => {
+      const h = fix.teams.home.name, a = fix.teams.away.name;
+      const sh = String(fix.goals.home ?? ''), sa = String(fix.goals.away ?? '');
+      if (sh === '' || sa === '') return;
 
-      const normHome = normName(home);
-      const normAway = normName(away);
-
-      // Find match by normalized name similarity
+      const nh = norm(h), na = norm(a);
       const match = state.matches.find(m => {
-        const mh = normName(m.home);
-        const ma = normName(m.away);
-        const homeMatch = mh.includes(normHome.slice(0,4)) || normHome.includes(mh.slice(0,4));
-        const awayMatch = ma.includes(normAway.slice(0,4)) || normAway.includes(ma.slice(0,4));
-        return homeMatch && awayMatch;
+        const mh = norm(m.home), ma = norm(m.away);
+        // At least 4 chars of prefix must overlap for both teams
+        const sl = n => n.slice(0, 5);
+        return (mh.includes(sl(nh)) || nh.includes(sl(mh))) &&
+               (ma.includes(sl(na)) || na.includes(sl(ma)));
       });
 
-      if (match && (match.result.home !== scoreHome || match.result.away !== scoreAway)) {
-        match.result = { home: scoreHome, away: scoreAway };
+      if (match && (match.result.home !== sh || match.result.away !== sa)) {
+        match.result = { home: sh, away: sa };
         updated++;
       }
     });
 
     await saveState();
-    btn.textContent = '✓ ' + updated + ' resultados actualizados';
-    renderAdminMatches();
-    renderTabla();
-    renderStats();
-    renderMatches();
-    setTimeout(() => { btn.textContent = 'Actualizar resultados'; btn.disabled = false; }, 3000);
+    btn.textContent = `✓ ${updated} resultado${updated !== 1 ? 's' : ''} actualizado${updated !== 1 ? 's' : ''}`;
+    renderAdminMatches(); renderTabla(); renderStats(); renderMatches();
+    setTimeout(() => { btn.textContent = 'Actualizar resultados'; btn.disabled = false; }, 3500);
   } catch(e) {
     btn.textContent = 'Error: ' + e.message;
     btn.disabled = false;
-    console.error(e);
+    console.error('syncResults:', e);
   }
 }
-
-
-
-// ─── Render: Comparar ────────────────────────────────────────────────────────
 function filterComparar(filter, btn) {
   _compararFilter = filter;
   document.querySelectorAll('.comparar-filter-btn').forEach(b => b.classList.remove('active'));
@@ -783,10 +814,10 @@ function renderComparar(filter = 'today') {
   const container = document.getElementById('comparar-list');
   if (!container) return;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayGuatemala();
   let matches = [...state.matches].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
 
-  if (filter === 'today')   matches = matches.filter(m => m.datetime.slice(0, 10) === today);
+  if (filter === 'today')   matches = matches.filter(m => matchDateGT(m.datetime) === today);
   if (filter === 'pending') matches = matches.filter(m => !m.result || m.result.home === '');
   if (filter === 'done')    matches = matches.filter(m => m.result && m.result.home !== '');
 
@@ -805,9 +836,7 @@ function renderComparar(filter = 'today') {
     ms.forEach(m => {
       const hasResult = m.result && m.result.home !== '';
       const locked = isLocked(m);
-      const dt = new Date(m.datetime);
-      const dtStr = dt.toLocaleDateString('es', { weekday: 'short', month: 'short', day: 'numeric' })
-        + ' ' + dt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+      const dtStr = fmtDatetimeGT(m.datetime);
 
       // Match header
       html += `<div style="padding:12px 0;border-bottom:0.5px solid var(--border)">
