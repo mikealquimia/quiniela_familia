@@ -827,14 +827,24 @@ async function syncResults() {
     await saveState();
     renderAdminMatches(); renderTabla(); renderStats(); renderMatches();
 
-    // Mostrar resultado en modal visible (no consola)
+    // Mostrar resultado en modal visible
     const matched   = debugLines.filter(l => l.includes('✓'));
     const unmatched = debugLines.filter(l => l.includes('✗'));
+    const diag = data.diag || {};
+    const diagLines = [
+      diag.leagueFound?.length  ? `🏆 Liga encontrada: ${diag.leagueFound.join(', ')}` : '⚠️ Liga NO encontrada en API',
+      `📋 Total partidos en torneo: ${diag.totalFixtures ?? '?'}`,
+      `✅ Partidos finalizados (FT): ${diag.finishedFixtures ?? data.response.length}`,
+      diag.statusesFound?.length ? `📊 Estados encontrados: ${diag.statusesFound.join(', ')}` : '',
+      diag.rateLimit?.remaining != null ? `🔑 Llamadas API restantes hoy: ${diag.rateLimit.remaining}/${diag.rateLimit.limit}` : '',
+      diag.accountInfo?.length  ? `⚠️ Errores API: ${JSON.stringify(diag.accountInfo)}` : '',
+    ].filter(Boolean);
+
     const report = [
       `<strong>✅ ${updated} resultado(s) guardado(s)</strong>`,
-      `<strong>🔍 ${data.response.length} partidos recibidos de la API</strong>`,
-      '',
-      matched.length   ? '<u>Emparejados:</u><br>' + matched.join('<br>')     : '',
+      `<strong>🔍 ${data.response.length} partidos finalizados recibidos</strong>`,
+      '<br><u>Diagnóstico:</u><br>' + diagLines.join('<br>'),
+      matched.length   ? '<br><u>Emparejados:</u><br>'              + matched.join('<br>')   : '',
       unmatched.length ? '<br><u>Sin match en tu quiniela:</u><br>' + unmatched.join('<br>') : '',
     ].filter(Boolean).join('<br>');
 
