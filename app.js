@@ -12,9 +12,151 @@ const FIREBASE_CONFIG = {
 
 
 // ─── API-Football config ─────────────────────────────────────────────────────
-// Registrate gratis en https://dashboard.api-football.com/register
-// y pega tu API key aqui:
-const API_FOOTBALL_KEY = "9999ebd705992251ae7de01915a6deac"; // <-- pega tu key aqui
+// La key se guarda en localStorage via el panel de configuración en Admin.
+// Este valor es el fallback si no hay nada guardado:
+const API_FOOTBALL_KEY_DEFAULT = "9999ebd705992251ae7de01915a6deac";
+
+// ─── API Config helpers ───────────────────────────────────────────────────────
+const API_CFG_KEY = 'quiniela_api_config';
+
+function getApiConfig() {
+  try {
+    const saved = localStorage.getItem(API_CFG_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return {
+    apiKey: API_FOOTBALL_KEY_DEFAULT,
+    leagueId: '',
+    season: '2026',
+    leagueName: 'FIFA World Cup'
+  };
+}
+
+function saveApiConfig() {
+  const cfg = {
+    apiKey:     document.getElementById('cfg-apikey').value.trim(),
+    leagueId:   document.getElementById('cfg-leagueid').value.trim(),
+    season:     document.getElementById('cfg-season').value.trim() || '2026',
+    leagueName: document.getElementById('cfg-leaguename').value.trim() || 'FIFA World Cup',
+  };
+  if (!cfg.apiKey) { alert('Ingresa una API key.'); return; }
+  localStorage.setItem(API_CFG_KEY, JSON.stringify(cfg));
+  updateApiConfigStatus();
+  showToast('✅ Configuración guardada');
+}
+
+function resetApiConfig() {
+  localStorage.removeItem(API_CFG_KEY);
+  loadApiConfigForm();
+  updateApiConfigStatus();
+  showToast('↩️ Configuración restaurada a defaults');
+}
+
+function loadApiConfigForm() {
+  const cfg = getApiConfig();
+  document.getElementById('cfg-apikey').value     = cfg.apiKey || '';
+  document.getElementById('cfg-leagueid').value   = cfg.leagueId || '';
+  document.getElementById('cfg-season').value     = cfg.season || '2026';
+  document.getElementById('cfg-leaguename').value = cfg.leagueName || 'FIFA World Cup';
+}
+
+function updateApiConfigStatus() {
+  const cfg = getApiConfig();
+  const el = document.getElementById('api-config-status');
+  if (!el) return;
+  const hasKey = cfg.apiKey && cfg.apiKey !== API_FOOTBALL_KEY_DEFAULT;
+  el.textContent = hasKey ? '🟢 Key configurada' : '🔴 Usando key de ejemplo';
+  el.style.color = hasKey ? 'var(--success-text,green)' : 'var(--warning-text,orange)';
+}
+
+function toggleApiKeyVisibility() {
+  const inp = document.getElementById('cfg-apikey');
+  const eye = document.getElementById('cfg-apikey-eye');
+  if (inp.type === 'password') { inp.type = 'text';     eye.textContent = '🙈'; }
+  else                          { inp.type = 'password'; eye.textContent = '👁';  }
+}
+
+async function testApiConfig() {
+  const cfg = {
+    apiKey:     document.getElementById('cfg-apikey').value.trim(),
+    leagueId:   document.getElementById('cfg-leagueid').value.trim(),
+    season:     document.getElementById('cfg-season').value.trim() || '2026',
+    leagueName: document.getElementById('cfg-leaguename').value.trim() || 'FIFA World Cup',
+  };
+  if (!cfg.apiKey) { alert('Ingresa una API key primero.'); return; }
+
+  const btn = document.getElementById('btn-test-api');
+  const res = document.getElementById('api-test-result');
+  btn.textContent = 'Probando...'; btn.disabled = true;
+  res.style.display = 'block';
+  res.textContent = '⏳ Consultando API...';
+
+  try {
+    // 1. Buscar liga
+    const leagueUrl = `https://v3.football.api-sports.io/leagues?name=${encodeURIComponent(cfg.leagueName)}&season=${cfg.season}`;
+    const lr = await fetch(leagueUrl, { headers: { 'x-rapidapi-key': cfg.apiKey, 'x-rapidapi-host': 'v3.football.api-sports.io' } });
+    const ld = await lr.json();
+    const leagues = ld.response || [];
+    const errors  = ld.errors || {};
+
+    let lines = [];
+
+    if (Object.keys(errors).length > 0) {
+      lines.push(`❌ Error de API: ${JSON.stringify(errors)}`);
+      lines.push(`   → Verifica que tu API key sea válida.`);
+    } else if (leagues.length === 0) {
+      lines.push(`⚠️ No se encontró liga con nombre "${cfg.leagueName}" en temporada ${cfg.season}`);
+      lines.push(`   → Prueba cambiar el nombre de liga o el League ID directamente.`);
+    } else {
+      lines.push(`✅ Liga(s) encontrada(s):`);
+      leagues.forEach(l => lines.push(`   • ${l.league.name} — ID: ${l.league.id} (${l.country?.name || ''})`));
+    }
+
+    // 2. Probar fixtures con el ID que se use
+    const useId = cfg.leagueId || (leagues[0]?.league?.id ?? 1);
+    lines.push(`\n📡 Consultando fixtures (League ID: ${useId}, Season: ${cfg.season})...`);
+    const fr = await fetch(`https://v3.football.api-sports.io/fixtures?league=${useId}&season=${cfg.season}`,
+      { headers: { 'x-rapidapi-key': cfg.apiKey, 'x-rapidapi-host': 'v3.football.api-sports.io' } });
+    const fd = await fr.json();
+    const fixtures = fd.response || [];
+    const finished = fixtures.filter(f => ['FT','AET','PEN'].includes(f.fixture?.status?.short));
+    const statuses = [...new Set(fixtures.map(f => f.fixture?.status?.short))].filter(Boolean);
+    const remaining = fr.headers.get('x-ratelimit-requests-remaining');
+    const limit     = fr.headers.get('x-ratelimit-requests-limit');
+
+    lines.push(`📋 Total partidos en torneo: ${fixtures.length}`);
+    lines.push(`✅ Finalizados (FT/AET/PEN): ${finished.length}`);
+    if (statuses.length) lines.push(`📊 Estados en torneo: ${statuses.join(', ')}`);
+    if (remaining != null) lines.push(`🔑 Llamadas restantes hoy: ${remaining}/${limit}`);
+    if (fd.errors && Object.keys(fd.errors).length > 0) lines.push(`⚠️ Errores: ${JSON.stringify(fd.errors)}`);
+
+    if (fixtures.length === 0) {
+      lines.push(`\n💡 Sugerencias:`);
+      if (!cfg.leagueId && leagues.length > 0) lines.push(`   • Intenta poner League ID: ${leagues[0].league.id} manualmente`);
+      lines.push(`   • Verifica que tu plan de API tenga acceso al Mundial (algunos planes gratuitos tienen restricciones)`);
+      lines.push(`   • Revisa en https://dashboard.api-football.com/ las ligas disponibles con tu plan`);
+    }
+
+    res.textContent = lines.join('\n');
+    res.style.background = fixtures.length > 0 ? '#f0fff4' : '#fff8f0';
+
+  } catch(e) {
+    res.textContent = `❌ Error de red: ${e.message}\n\n💡 Si estás en desarrollo local, la llamada directa a api-sports.io puede fallar por CORS.\n   Usa el botón "Actualizar resultados" que pasa por el servidor Vercel.`;
+  }
+
+  btn.textContent = '🔌 Probar conexión'; btn.disabled = false;
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:99999;opacity:0;transition:opacity .2s';
+  document.body.appendChild(t);
+  requestAnimationFrame(() => { t.style.opacity = '1'; setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2500); });
+}
+
+// Getter que usan syncResults e importFixtures
+function getApiKey() { return getApiConfig().apiKey || API_FOOTBALL_KEY_DEFAULT; }
 
 // ─── State ──────────────────────────────────────────────────────────────────
 let db;
@@ -758,8 +900,10 @@ async function importFixtures() {
 // ─── Actualizar resultados desde API-Football ────────────────────────────────
 // ─── Actualizar resultados desde API-Football ────────────────────────────────
 async function syncResults() {
-  if (!API_FOOTBALL_KEY) {
-    alert('Agrega tu API key de API-Football en app.js primero.\nRegistrate gratis en: https://dashboard.api-football.com/register');
+  const cfg = getApiConfig();
+  if (!cfg.apiKey) {
+    alert('Agrega tu API key de API-Football en el panel ⚙️ Configuración de API-Football arriba.\nRegistrate gratis en: https://dashboard.api-football.com/register');
+    document.getElementById('api-config-panel').open = true;
     return;
   }
   const btn = document.getElementById('btn-sync');
@@ -768,7 +912,11 @@ async function syncResults() {
 
   try {
     // Llamamos a nuestra Vercel Function /api/resultados (mismo dominio, sin CORS)
-    const r = await fetch('/api/resultados?key=' + encodeURIComponent(API_FOOTBALL_KEY));
+    let url = '/api/resultados?key=' + encodeURIComponent(cfg.apiKey);
+    if (cfg.leagueId)   url += '&leagueId='   + encodeURIComponent(cfg.leagueId);
+    if (cfg.season)     url += '&season='      + encodeURIComponent(cfg.season);
+    if (cfg.leagueName) url += '&leagueName='  + encodeURIComponent(cfg.leagueName);
+    const r = await fetch(url);
     if (!r.ok) throw new Error('HTTP ' + r.status + ' — verifica tu API key');
     const data = await r.json();
     if (!data.response) throw new Error(data.error || 'Respuesta inválida de API-Football');
@@ -1041,6 +1189,10 @@ async function saveNewPin() {
 }
 
 // ─── Boot ────────────────────────────────────────────────────────────────────
+// Cargar configuración de API en el formulario al iniciar
+loadApiConfigForm();
+updateApiConfigStatus();
+
 initFirebase().catch(err => {
   console.error('Firebase error:', err);
   document.body.innerHTML = `<div style="padding:2rem;font-family:sans-serif;color:#a32d2d">
