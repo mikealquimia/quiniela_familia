@@ -417,3 +417,39 @@ body::before {
   color: var(--accent-text);
   font-weight: 500;
 }
+
+/* DATE SELECT */
+.date-select {
+  flex: 1;
+  min-width: 200px;
+  max-width: 360px;
+  padding: 7px 12px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.date-select:focus {
+  border-color: var(--accent);
+}
+
+/* DATE SELECT DROPDOWN */
+.date-select {
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.date-select:hover, .date-select:focus {
+  border-color: var(--accent);
+}

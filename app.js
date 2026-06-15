@@ -475,6 +475,13 @@ function renderStats() {
 }
 
 // ─── Render: Admin Matches ───────────────────────────────────────────────────
+let _adminDateFilter = 'today';
+
+function filterAdminMatches(val) {
+  _adminDateFilter = val;
+  renderAdminMatches();
+}
+
 function renderAdminMatches() {
   const container = document.getElementById('admin-matches-list');
   if (state.matches.length === 0) {
@@ -482,7 +489,35 @@ function renderAdminMatches() {
     return;
   }
 
-  container.innerHTML = state.matches.map(m => {
+  const today = todayGuatemala();
+  const dates = [...new Set(state.matches.map(m => matchDateGT(m.datetime)))].sort();
+
+  // Build date selector
+  let selHtml = `<div class="date-filter-bar" style="margin-bottom:12px">
+    <label style="font-size:13px;color:var(--text-secondary);font-weight:500">Fecha:</label>
+    <select class="date-select" onchange="filterAdminMatches(this.value)">
+      <option value="all" ${_adminDateFilter === 'all' ? 'selected' : ''}>Todos los partidos</option>
+      <option value="today" ${_adminDateFilter === 'today' ? 'selected' : ''}>Hoy</option>`;
+  dates.forEach(d => {
+    const label = new Date(d + 'T12:00:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+    selHtml += `<option value="${d}" ${_adminDateFilter === d ? 'selected' : ''}>${label}</option>`;
+  });
+  selHtml += `</select></div>`;
+
+  // Filter matches
+  let matches = [...state.matches].sort((a,b) => new Date(a.datetime) - new Date(b.datetime));
+  if (_adminDateFilter === 'today') {
+    matches = matches.filter(m => matchDateGT(m.datetime) === today);
+  } else if (_adminDateFilter !== 'all') {
+    matches = matches.filter(m => matchDateGT(m.datetime) === _adminDateFilter);
+  }
+
+  if (matches.length === 0) {
+    container.innerHTML = selHtml + '<p style="font-size:13px;color:var(--text-secondary);padding-top:8px">No hay partidos en esta fecha.</p>';
+    return;
+  }
+
+  container.innerHTML = selHtml + matches.map(m => {
     const dtStr = fmtDatetimeGT(m.datetime);
     const hasResult = m.result && m.result.home !== '';
 
@@ -742,30 +777,57 @@ async function syncResults() {
     function norm(s) {
       return (s || '').toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/\b(de|la|los|las|el|the|republic|united|states|of)\b/g, '')
+        .replace(/\b(de|la|los|las|el|the|republic|united|states|of|ivory|coast|korea|dpr|south|north)\b/g, '')
         .replace(/[^a-z0-9]/g, '');
     }
 
+    // Alias map: nombres alternativos que usa la API vs los que usa openfootball
+    const ALIASES = {
+      'cote divoire': 'ivory coast',
+      'ivoire': 'ivory coast',
+      'korea republic': 'south korea',
+      'korea dpr': 'north korea',
+      'usa': 'united states',
+      'ir iran': 'iran',
+      'czechia': 'czech republic',
+      'trinidad tobago': 'trinidad and tobago',
+    };
+    function canonical(s) {
+      const n = norm(s);
+      return ALIASES[n] ? norm(ALIASES[n]) : n;
+    }
+
+    const debugLines = [];
     let updated = 0;
     data.response.forEach(fix => {
       const h = fix.teams.home.name, a = fix.teams.away.name;
       const sh = String(fix.goals.home ?? ''), sa = String(fix.goals.away ?? '');
       if (sh === '' || sa === '') return;
 
-      const nh = norm(h), na = norm(a);
+      const nh = canonical(h), na = canonical(a);
+
       const match = state.matches.find(m => {
-        const mh = norm(m.home), ma = norm(m.away);
-        // At least 4 chars of prefix must overlap for both teams
-        const sl = n => n.slice(0, 5);
-        return (mh.includes(sl(nh)) || nh.includes(sl(mh))) &&
-               (ma.includes(sl(na)) || na.includes(sl(ma)));
+        const mh = canonical(m.home), ma = canonical(m.away);
+        // Both teams must share at least 4 chars with API name
+        const overlaps = (x, y) => {
+          const short = x.length < y.length ? x : y;
+          return short.length >= 3 && (x.includes(y.slice(0,4)) || y.includes(x.slice(0,4)));
+        };
+        return overlaps(mh, nh) && overlaps(ma, na);
       });
+
+      debugLines.push(`API: "${h}" vs "${a}" (${sh}-${sa}) → ${match ? '✓ ' + match.home + ' vs ' + match.away : '✗ NO MATCH'}`);
 
       if (match && (match.result.home !== sh || match.result.away !== sa)) {
         match.result = { home: sh, away: sa };
         updated++;
       }
     });
+
+    // Log to console for debugging
+    console.group('syncResults — ' + data.response.length + ' fixtures de API');
+    debugLines.forEach(l => console.log(l));
+    console.groupEnd();
 
     await saveState();
     btn.textContent = `✓ ${updated} resultado${updated !== 1 ? 's' : ''} actualizado${updated !== 1 ? 's' : ''}`;
