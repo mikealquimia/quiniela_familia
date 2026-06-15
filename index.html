@@ -143,9 +143,10 @@
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <div class="section-title" style="margin:0"><i class="ti ti-eye"></i> Quinielas por partido</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
-            <button class="btn btn-sm filter-btn active" onclick="filterComparar('all',this)">Todos</button>
-            <button class="btn btn-sm filter-btn" onclick="filterComparar('pending',this)">Por jugar</button>
-            <button class="btn btn-sm filter-btn" onclick="filterComparar('done',this)">Finalizados</button>
+            <button class="btn btn-sm comparar-filter-btn" onclick="filterComparar('all',this)">Todos</button>
+            <button class="btn btn-sm comparar-filter-btn active" onclick="filterComparar('today',this)">Hoy</button>
+            <button class="btn btn-sm comparar-filter-btn" onclick="filterComparar('pending',this)">Por jugar</button>
+            <button class="btn btn-sm comparar-filter-btn" onclick="filterComparar('done',this)">Finalizados</button>
           </div>
         </div>
       </div>

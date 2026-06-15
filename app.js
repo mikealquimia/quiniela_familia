@@ -176,7 +176,7 @@ function refreshAll() {
 }
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
-let _compararFilter = 'all';
+let _compararFilter = 'today'; // default to today
 function showTab(id, btn) {
   ['tab-quiniela','tab-tabla','tab-stats','tab-comparar','tab-admin'].forEach(t => {
     document.getElementById(t).classList.add('hidden');
@@ -196,8 +196,9 @@ function calcPoints(userId, match) {
   if (!match.result || match.result.home === '') return 0;
   const pick = state.picks[userId]?.[match.id];
   if (!pick || pick.home === '' || pick.away === '') return 0;
-  const rh = parseInt(match.result.home), ra = parseInt(match.result.away);
-  const ph = parseInt(pick.home),         pa = parseInt(pick.away);
+  // Treat empty/null scores as 0
+  const rh = parseInt(match.result.home ?? 0), ra = parseInt(match.result.away ?? 0);
+  const ph = parseInt(pick.home ?? 0),         pa = parseInt(pick.away ?? 0);
   if (ph === rh && pa === ra) return state.points.exact;
   const rRes = rh > ra ? 'H' : rh < ra ? 'A' : 'D';
   const pRes = ph > pa ? 'H' : ph < pa ? 'A' : 'D';
@@ -235,6 +236,8 @@ function getStreak(userId) {
   return streak;
 }
 
+let _matchDateFilter = 'all'; // 'all' | 'today' | date string 'YYYY-MM-DD'
+
 // ─── Render: Matches ─────────────────────────────────────────────────────────
 function renderMatches() {
   const container = document.getElementById('matches-list');
@@ -249,11 +252,39 @@ function renderMatches() {
     return;
   }
 
-  const phases = [...new Set(state.matches.map(m => m.phase))];
-  let html = '';
+  // Build date filter UI
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = [...new Set(state.matches.map(m => m.datetime.slice(0, 10)))].sort();
+  let filterHtml = `<div class="date-filter-bar">
+    <button class="btn btn-sm filter-btn ${_matchDateFilter === 'all' ? 'active' : ''}" onclick="filterMatches('all',this)">Todos</button>
+    <button class="btn btn-sm filter-btn ${_matchDateFilter === 'today' ? 'active' : ''}" onclick="filterMatches('today',this)">Hoy</button>`;
+  dates.forEach(d => {
+    const label = new Date(d + 'T12:00:00').toLocaleDateString('es', { weekday: 'short', day: 'numeric', month: 'short' });
+    filterHtml += `<button class="btn btn-sm filter-btn ${_matchDateFilter === d ? 'active' : ''}" onclick="filterMatches('${d}',this)">${label}</button>`;
+  });
+  filterHtml += `</div>`;
+
+  // Apply filter
+  let matches = state.matches;
+  if (_matchDateFilter === 'today') {
+    matches = matches.filter(m => m.datetime.slice(0, 10) === today);
+  } else if (_matchDateFilter !== 'all') {
+    matches = matches.filter(m => m.datetime.slice(0, 10) === _matchDateFilter);
+  }
+
+  if (matches.length === 0) {
+    container.innerHTML = filterHtml + `<div style="text-align:center;padding:3rem;color:var(--text-secondary)">
+      <i class="ti ti-calendar-off" style="font-size:28px;display:block;margin-bottom:10px"></i>
+      No hay partidos en esta fecha
+    </div>`;
+    return;
+  }
+
+  const phases = [...new Set(matches.map(m => m.phase))];
+  let html = filterHtml;
 
   phases.forEach(phase => {
-    const ms = state.matches.filter(m => m.phase === phase);
+    const ms = matches.filter(m => m.phase === phase);
     html += `<div class="phase-group"><div class="card"><div class="phase-header">${phase}</div>`;
 
     ms.forEach(m => {
@@ -307,6 +338,11 @@ function renderMatches() {
   });
 
   container.innerHTML = html;
+}
+
+function filterMatches(filter, btn) {
+  _matchDateFilter = filter;
+  renderMatches();
 }
 
 async function setPick(userId, matchId, side, val) {
@@ -663,14 +699,35 @@ async function syncResults() {
   btn.textContent = 'Actualizando...';
   btn.disabled = true;
   try {
-    const res = await fetch('https://v3.football.api-sports.io/fixtures?league=1&season=2026&status=FT', {
-      headers: {
-        'x-rapidapi-key': API_FOOTBALL_KEY,
-        'x-rapidapi-host': 'v3.football.api-sports.io'
-      }
-    });
-    const data = await res.json();
+    // Use a CORS proxy to bypass browser restrictions
+    const apiUrl = 'https://v3.football.api-sports.io/fixtures?league=1&season=2026&status=FT';
+    const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(apiUrl);
+    
+    const res = await fetch(proxyUrl);
+    const proxyData = await res.json();
+    
+    let data;
+    try {
+      data = JSON.parse(proxyData.contents);
+    } catch(e) {
+      // Try direct if proxy fails
+      const directRes = await fetch(apiUrl, {
+        headers: {
+          'x-rapidapi-key': API_FOOTBALL_KEY,
+          'x-rapidapi-host': 'v3.football.api-sports.io'
+        }
+      });
+      data = await directRes.json();
+    }
+    
     if (!data.response) throw new Error('Respuesta inválida de API-Football');
+
+    // Helper: normalize team name for fuzzy matching
+    function normName(s) {
+      return s.toLowerCase()
+        .replace(/\b(de|la|los|las|el|the)\b/g, '')
+        .replace(/[^a-z0-9]/g, '').trim();
+    }
 
     let updated = 0;
     data.response.forEach(fixture => {
@@ -680,11 +737,18 @@ async function syncResults() {
       const scoreAway = String(fixture.goals.away ?? '');
       if (scoreHome === '' || scoreAway === '') return;
 
-      // Match by team names (fuzzy - find closest)
-      const match = state.matches.find(m =>
-        m.home.toLowerCase().includes(home.toLowerCase().slice(0,5)) ||
-        home.toLowerCase().includes(m.home.toLowerCase().slice(0,5))
-      );
+      const normHome = normName(home);
+      const normAway = normName(away);
+
+      // Find match by normalized name similarity
+      const match = state.matches.find(m => {
+        const mh = normName(m.home);
+        const ma = normName(m.away);
+        const homeMatch = mh.includes(normHome.slice(0,4)) || normHome.includes(mh.slice(0,4));
+        const awayMatch = ma.includes(normAway.slice(0,4)) || normAway.includes(ma.slice(0,4));
+        return homeMatch && awayMatch;
+      });
+
       if (match && (match.result.home !== scoreHome || match.result.away !== scoreAway)) {
         match.result = { home: scoreHome, away: scoreAway };
         updated++;
@@ -710,17 +774,19 @@ async function syncResults() {
 // ─── Render: Comparar ────────────────────────────────────────────────────────
 function filterComparar(filter, btn) {
   _compararFilter = filter;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.comparar-filter-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   renderComparar(filter);
 }
 
-function renderComparar(filter = 'all') {
+function renderComparar(filter = 'today') {
   const container = document.getElementById('comparar-list');
   if (!container) return;
 
+  const today = new Date().toISOString().slice(0, 10);
   let matches = [...state.matches].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
 
+  if (filter === 'today')   matches = matches.filter(m => m.datetime.slice(0, 10) === today);
   if (filter === 'pending') matches = matches.filter(m => !m.result || m.result.home === '');
   if (filter === 'done')    matches = matches.filter(m => m.result && m.result.home !== '');
 

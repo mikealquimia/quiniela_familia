@@ -401,3 +401,19 @@ body::before {
   color: var(--accent-text);
   font-weight: 500;
 }
+
+/* DATE FILTER BAR */
+.date-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 0 14px;
+  overflow-x: auto;
+}
+.comparar-filter-btn { color: var(--text-secondary); }
+.comparar-filter-btn.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 500;
+}
