@@ -824,19 +824,34 @@ async function syncResults() {
       }
     });
 
-    // Log to console for debugging
-    console.group('syncResults — ' + data.response.length + ' fixtures de API');
-    debugLines.forEach(l => console.log(l));
-    console.groupEnd();
-
     await saveState();
-    btn.textContent = `✓ ${updated} resultado${updated !== 1 ? 's' : ''} actualizado${updated !== 1 ? 's' : ''}`;
     renderAdminMatches(); renderTabla(); renderStats(); renderMatches();
+
+    // Mostrar resultado en modal visible (no consola)
+    const matched   = debugLines.filter(l => l.includes('✓'));
+    const unmatched = debugLines.filter(l => l.includes('✗'));
+    const report = [
+      `<strong>✅ ${updated} resultado(s) guardado(s)</strong>`,
+      `<strong>🔍 ${data.response.length} partidos recibidos de la API</strong>`,
+      '',
+      matched.length   ? '<u>Emparejados:</u><br>' + matched.join('<br>')     : '',
+      unmatched.length ? '<br><u>Sin match en tu quiniela:</u><br>' + unmatched.join('<br>') : '',
+    ].filter(Boolean).join('<br>');
+
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto">
+      <div style="font-size:15px;line-height:1.7">${report}</div>
+      <button onclick="this.closest('div[style]').remove()" style="margin-top:16px;padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Cerrar</button>
+    </div>`;
+    document.body.appendChild(overlay);
+
+    btn.textContent = `✓ ${updated} actualizado(s)`;
     setTimeout(() => { btn.textContent = 'Actualizar resultados'; btn.disabled = false; }, 3500);
   } catch(e) {
     btn.textContent = 'Error: ' + e.message;
     btn.disabled = false;
-    console.error('syncResults:', e);
+    alert('Error al sincronizar: ' + e.message);
   }
 }
 function filterComparar(filter, btn) {
