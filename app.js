@@ -732,37 +732,11 @@ async function syncResults() {
   btn.disabled = true;
 
   try {
-    const TARGET = 'https://v3.football.api-sports.io/fixtures?league=1&season=2026&status=FT';
-    const HEADERS = {
-      'x-rapidapi-key': API_FOOTBALL_KEY,
-      'x-rapidapi-host': 'v3.football.api-sports.io'
-    };
-
-    let data = null;
-
-    // Strategy 1: direct call (works if the API has CORS headers for your key)
-    try {
-      const r = await fetch(TARGET, { headers: HEADERS });
-      if (r.ok) { const j = await r.json(); if (j.response) data = j; }
-    } catch(_) {}
-
-    // Strategy 2: corsproxy.io (reenvía headers, diferente a allorigins)
-    if (!data) {
-      try {
-        const r = await fetch('https://corsproxy.io/?' + encodeURIComponent(TARGET), { headers: HEADERS });
-        if (r.ok) { const j = await r.json(); if (j.response) data = j; }
-      } catch(_) {}
-    }
-
-    // Strategy 3: thingproxy (otro proxy confiable)
-    if (!data) {
-      try {
-        const r = await fetch('https://thingproxy.freeboard.io/fetch/' + TARGET, { headers: HEADERS });
-        if (r.ok) { const j = await r.json(); if (j.response) data = j; }
-      } catch(_) {}
-    }
-
-    if (!data) throw new Error('No se pudo conectar. Verifica tu API key o intenta más tarde.');
+    // Llamamos a nuestra Vercel Function /api/resultados (mismo dominio, sin CORS)
+    const r = await fetch('/api/resultados?key=' + encodeURIComponent(API_FOOTBALL_KEY));
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' — verifica tu API key');
+    const data = await r.json();
+    if (!data.response) throw new Error(data.error || 'Respuesta inválida de API-Football');
 
     // Normalize name for fuzzy matching
     function norm(s) {
