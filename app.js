@@ -1,6 +1,5 @@
-// ─── Firebase config ───────────────────────────────────────────────────────
-// IMPORTANTE: Reemplaza estos valores con los de tu proyecto Firebase
-// Instrucciones en README.md
+// ─── Firebase config ────────────────────────────────────────────────────────
+// IMPORTANTE: Estos son los datos de quiniela_familia. No cambiar.
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAAQ5LBKV9nav8FRm8HJIvZU6wmV5tT-RE",
   authDomain: "quiniela-familia-2026-8c4a9.firebaseapp.com",
@@ -10,10 +9,8 @@ const FIREBASE_CONFIG = {
   appId: "1:230703417525:web:859a9e538f6998b0fc96fc"
 };
 
-
 // ─── API-Football config ─────────────────────────────────────────────────────
 // La key se guarda en localStorage via el panel de configuración en Admin.
-// Este valor es el fallback si no hay nada guardado:
 const API_FOOTBALL_KEY_DEFAULT = "9999ebd705992251ae7de01915a6deac";
 
 // ─── API Config helpers ───────────────────────────────────────────────────────
@@ -92,7 +89,6 @@ async function testApiConfig() {
   res.textContent = '⏳ Consultando API...';
 
   try {
-    // 1. Buscar liga
     const leagueUrl = `https://v3.football.api-sports.io/leagues?name=${encodeURIComponent(cfg.leagueName)}&season=${cfg.season}`;
     const lr = await fetch(leagueUrl, { headers: { 'x-rapidapi-key': cfg.apiKey, 'x-rapidapi-host': 'v3.football.api-sports.io' } });
     const ld = await lr.json();
@@ -100,19 +96,16 @@ async function testApiConfig() {
     const errors  = ld.errors || {};
 
     let lines = [];
-
     if (Object.keys(errors).length > 0) {
       lines.push(`❌ Error de API: ${JSON.stringify(errors)}`);
       lines.push(`   → Verifica que tu API key sea válida.`);
     } else if (leagues.length === 0) {
       lines.push(`⚠️ No se encontró liga con nombre "${cfg.leagueName}" en temporada ${cfg.season}`);
-      lines.push(`   → Prueba cambiar el nombre de liga o el League ID directamente.`);
     } else {
       lines.push(`✅ Liga(s) encontrada(s):`);
       leagues.forEach(l => lines.push(`   • ${l.league.name} — ID: ${l.league.id} (${l.country?.name || ''})`));
     }
 
-    // 2. Probar fixtures con el ID que se use
     const useId = cfg.leagueId || (leagues[0]?.league?.id ?? 1);
     lines.push(`\n📡 Consultando fixtures (League ID: ${useId}, Season: ${cfg.season})...`);
     const fr = await fetch(`https://v3.football.api-sports.io/fixtures?league=${useId}&season=${cfg.season}`,
@@ -120,28 +113,17 @@ async function testApiConfig() {
     const fd = await fr.json();
     const fixtures = fd.response || [];
     const finished = fixtures.filter(f => ['FT','AET','PEN'].includes(f.fixture?.status?.short));
-    const statuses = [...new Set(fixtures.map(f => f.fixture?.status?.short))].filter(Boolean);
     const remaining = fr.headers.get('x-ratelimit-requests-remaining');
     const limit     = fr.headers.get('x-ratelimit-requests-limit');
 
     lines.push(`📋 Total partidos en torneo: ${fixtures.length}`);
     lines.push(`✅ Finalizados (FT/AET/PEN): ${finished.length}`);
-    if (statuses.length) lines.push(`📊 Estados en torneo: ${statuses.join(', ')}`);
     if (remaining != null) lines.push(`🔑 Llamadas restantes hoy: ${remaining}/${limit}`);
-    if (fd.errors && Object.keys(fd.errors).length > 0) lines.push(`⚠️ Errores: ${JSON.stringify(fd.errors)}`);
-
-    if (fixtures.length === 0) {
-      lines.push(`\n💡 Sugerencias:`);
-      if (!cfg.leagueId && leagues.length > 0) lines.push(`   • Intenta poner League ID: ${leagues[0].league.id} manualmente`);
-      lines.push(`   • Verifica que tu plan de API tenga acceso al Mundial (algunos planes gratuitos tienen restricciones)`);
-      lines.push(`   • Revisa en https://dashboard.api-football.com/ las ligas disponibles con tu plan`);
-    }
 
     res.textContent = lines.join('\n');
     res.style.background = fixtures.length > 0 ? '#f0fff4' : '#fff8f0';
-
   } catch(e) {
-    res.textContent = `❌ Error de red: ${e.message}\n\n💡 Si estás en desarrollo local, la llamada directa a api-sports.io puede fallar por CORS.\n   Usa el botón "Actualizar resultados" que pasa por el servidor Vercel.`;
+    res.textContent = `❌ Error de red: ${e.message}`;
   }
 
   btn.textContent = '🔌 Probar conexión'; btn.disabled = false;
@@ -155,7 +137,6 @@ function showToast(msg) {
   requestAnimationFrame(() => { t.style.opacity = '1'; setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2500); });
 }
 
-// Getter que usan syncResults e importFixtures
 function getApiKey() { return getApiConfig().apiKey || API_FOOTBALL_KEY_DEFAULT; }
 
 // ─── State ──────────────────────────────────────────────────────────────────
@@ -164,12 +145,112 @@ let state = {
   users: [],
   matches: [],
   picks: {},
-  points: { result: 1, exact: 3 },
+  points: { result: 1, exact: 3 },   // puntos familia: exacto=3, resultado=1
   currentUser: null,
   editingAs: null
 };
 
 const COLORS = ['#3B6D11','#185FA5','#A32D2D','#854F0B','#993556','#3C3489','#0F6E56','#993C1D'];
+
+// ─── Banderas de países (emoji via código ISO 3166-1 alpha-2) ────────────────
+const COUNTRY_FLAGS = {
+  'Mexico': 'MX', 'México': 'MX',
+  'USA': 'US', 'United States': 'US', 'Estados Unidos': 'US',
+  'Canada': 'CA', 'Canadá': 'CA',
+  'Brazil': 'BR', 'Brasil': 'BR',
+  'Argentina': 'AR',
+  'Colombia': 'CO',
+  'Ecuador': 'EC',
+  'Uruguay': 'UY',
+  'Chile': 'CL',
+  'Paraguay': 'PY',
+  'Peru': 'PE', 'Perú': 'PE',
+  'Bolivia': 'BO',
+  'Venezuela': 'VE',
+  'Spain': 'ES', 'España': 'ES',
+  'France': 'FR', 'Francia': 'FR',
+  'Germany': 'DE', 'Alemania': 'DE',
+  'England': 'GB', 'Inglaterra': 'GB',
+  'Portugal': 'PT',
+  'Netherlands': 'NL', 'Países Bajos': 'NL', 'Holanda': 'NL',
+  'Belgium': 'BE', 'Bélgica': 'BE',
+  'Italy': 'IT', 'Italia': 'IT',
+  'Croatia': 'HR', 'Croacia': 'HR',
+  'Denmark': 'DK', 'Dinamarca': 'DK',
+  'Switzerland': 'CH', 'Suiza': 'CH',
+  'Austria': 'AT',
+  'Serbia': 'RS',
+  'Poland': 'PL', 'Polonia': 'PL',
+  'Ukraine': 'UA', 'Ucrania': 'UA',
+  'Hungary': 'HU', 'Hungría': 'HU',
+  'Slovakia': 'SK', 'Eslovaquia': 'SK',
+  'Slovenia': 'SI', 'Eslovenia': 'SI',
+  'Romania': 'RO', 'Rumanía': 'RO',
+  'Czechia': 'CZ', 'Czech Republic': 'CZ', 'República Checa': 'CZ',
+  'Scotland': 'GB', 'Escocia': 'GB',
+  'Wales': 'GB', 'Gales': 'GB',
+  'Turkey': 'TR', 'Turquía': 'TR',
+  'Greece': 'GR', 'Grecia': 'GR',
+  'Morocco': 'MA', 'Marruecos': 'MA',
+  'Senegal': 'SN',
+  'Nigeria': 'NG',
+  'Ghana': 'GH',
+  'Ivory Coast': 'CI', 'Côte d\'Ivoire': 'CI', 'Costa de Marfil': 'CI',
+  'Egypt': 'EG', 'Egipto': 'EG',
+  'Cameroon': 'CM', 'Camerún': 'CM',
+  'Tunisia': 'TN', 'Túnez': 'TN',
+  'Algeria': 'DZ', 'Argelia': 'DZ',
+  'Mali': 'ML',
+  'South Africa': 'ZA', 'Sudáfrica': 'ZA',
+  'DR Congo': 'CD', 'Congo': 'CD',
+  'Japan': 'JP', 'Japón': 'JP',
+  'South Korea': 'KR', 'Corea del Sur': 'KR', 'Korea Republic': 'KR',
+  'Australia': 'AU',
+  'Iran': 'IR', 'Irán': 'IR',
+  'Saudi Arabia': 'SA', 'Arabia Saudita': 'SA',
+  'Qatar': 'QA',
+  'Iraq': 'IQ',
+  'Jordan': 'JO', 'Jordania': 'JO',
+  'Uzbekistan': 'UZ', 'Uzbekistán': 'UZ',
+  'China': 'CN',
+  'Indonesia': 'ID',
+  'New Zealand': 'NZ', 'Nueva Zelanda': 'NZ',
+  'Costa Rica': 'CR',
+  'Panama': 'PA', 'Panamá': 'PA',
+  'Honduras': 'HN',
+  'Guatemala': 'GT',
+  'Jamaica': 'JM',
+  'Trinidad and Tobago': 'TT',
+  'Cuba': 'CU',
+  'Haiti': 'HT', 'Haití': 'HT',
+  'El Salvador': 'SV',
+  'Nicaragua': 'NI',
+};
+
+// ─── Banderas imagen via flagcdn.com ─────────────────────────────────────────
+const TEAM_FLAGS = {
+  'Algeria':'dz','Argentina':'ar','Australia':'au','Austria':'at','Belgium':'be',
+  'Bosnia & Herzegovina':'ba','Brazil':'br','Canada':'ca','Cape Verde':'cv',
+  'Colombia':'co','Croatia':'hr','Curaçao':'cw','Czech Republic':'cz',
+  'DR Congo':'cd','Ecuador':'ec','Egypt':'eg','England':'gb-eng','France':'fr',
+  'Germany':'de','Ghana':'gh','Haiti':'ht','Iran':'ir','Iraq':'iq',
+  'Ivory Coast':'ci','Japan':'jp','Jordan':'jo','Mexico':'mx','Morocco':'ma',
+  'Netherlands':'nl','New Zealand':'nz','Norway':'no','Panama':'pa',
+  'Paraguay':'py','Portugal':'pt','Qatar':'qa','Saudi Arabia':'sa',
+  'Scotland':'gb-sct','Senegal':'sn','South Africa':'za','South Korea':'kr',
+  'Spain':'es','Sweden':'se','Switzerland':'ch','Tunisia':'tn','Turkey':'tr',
+  'USA':'us','Uruguay':'uy','Uzbekistan':'uz','Honduras':'hn','Guatemala':'gt',
+  'Costa Rica':'cr','Jamaica':'jm','El Salvador':'sv',
+};
+
+function flagImg(team, cls = 'flag') {
+  const c = TEAM_FLAGS[team];
+  const w = cls === 'flag' ? 'w40' : 'w80';
+  return c
+    ? `<img class="${cls}" src="https://flagcdn.com/${w}/${c}.png" alt="" loading="lazy">`
+    : `<span class="${cls} flag-tbd">⚽</span>`;
+}
+
 function colorFor(name) {
   let h = 0;
   for (let c of name) h = (h * 31 + c.charCodeAt(0)) % COLORS.length;
@@ -188,7 +269,6 @@ async function initFirebase() {
   const app = initializeApp(FIREBASE_CONFIG);
   db = getFirestore(app);
 
-  // Live listener — actualiza la UI cuando cambia algo en Firestore
   onSnapshot(doc(db, 'quiniela', 'data'), (snap) => {
     if (snap.exists()) {
       const d = snap.data();
@@ -197,7 +277,6 @@ async function initFirebase() {
       state.picks   = d.picks   || {};
       state.points  = d.points  || { result: 1, exact: 3 };
       if (state.currentUser) {
-        // Refresh current user object in case admin status changed
         state.currentUser = state.users.find(u => u.id === state.currentUser.id) || state.currentUser;
         if (!state.editingAs || state.editingAs.id === state.currentUser.id) {
           state.editingAs = state.currentUser;
@@ -307,18 +386,18 @@ function doLogout() {
 }
 
 function refreshAll() {
+  renderMyStats();
   renderMatches();
   renderTabla();
   renderStats();
-  renderComparar(_compararFilter);
+  renderComparar();
   renderAdminMatches();
   renderAdminUsers();
   document.getElementById('pts-result').value = state.points.result;
   document.getElementById('pts-exact').value   = state.points.exact;
 }
 
-// ─── Tabs ────────────────────────────────────────────────────────────────────
-let _compararFilter = 'today'; // default to today
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
 function showTab(id, btn) {
   ['tab-quiniela','tab-tabla','tab-stats','tab-comparar','tab-admin'].forEach(t => {
     document.getElementById(t).classList.add('hidden');
@@ -326,7 +405,21 @@ function showTab(id, btn) {
   document.getElementById(id).classList.remove('hidden');
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  if (id === 'tab-comparar') renderComparar(_compararFilter);
+  if (id === 'tab-comparar') renderComparar();
+}
+
+// ─── Pick helpers ─────────────────────────────────────────────────────────────
+function hasVal(v) { return v !== '' && v !== null && v !== undefined; }
+function pickSet(pick) {
+  if (!pick) return false;
+  return hasVal(pick.home) || hasVal(pick.away);
+}
+function normPick(pick) {
+  if (!pick) return { home: 0, away: 0 };
+  return {
+    home: hasVal(pick.home) ? pick.home : 0,
+    away: hasVal(pick.away) ? pick.away : 0
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -334,13 +427,14 @@ function isLocked(match) {
   return Date.now() >= new Date(match.datetime).getTime() - 60 * 60 * 1000;
 }
 
+// Sistema de puntos familia: exacto=3, resultado=1 (sin bonos adicionales)
 function calcPoints(userId, match) {
   if (!match.result || match.result.home === '') return 0;
   const pick = state.picks[userId]?.[match.id];
-  if (!pick || pick.home === '' || pick.away === '') return 0;
-  // Treat empty/null scores as 0
+  if (!pickSet(pick)) return 0;
+  const np = normPick(pick);
   const rh = parseInt(match.result.home ?? 0), ra = parseInt(match.result.away ?? 0);
-  const ph = parseInt(pick.home ?? 0),         pa = parseInt(pick.away ?? 0);
+  const ph = parseInt(np.home ?? 0),           pa = parseInt(np.away ?? 0);
   if (ph === rh && pa === ra) return state.points.exact;
   const rRes = rh > ra ? 'H' : rh < ra ? 'A' : 'D';
   const pRes = ph > pa ? 'H' : ph < pa ? 'A' : 'D';
@@ -378,35 +472,133 @@ function getStreak(userId) {
   return streak;
 }
 
-let _matchDateFilter = 'today'; // 'all' | 'today' | date string 'YYYY-MM-DD'
+function countDraws(userId) {
+  let d = 0;
+  state.matches.forEach(m => {
+    const pk = state.picks[userId]?.[m.id];
+    if (pickSet(pk)) { const np = normPick(pk); if (+np.home === +np.away) d++; }
+  });
+  return d;
+}
 
-// Guatemala is UTC-6, always (no DST)
-// Returns today's date string in Guatemala time: 'YYYY-MM-DD'
+// ─── Zona horaria Guatemala ──────────────────────────────────────────────────
+// Guatemala es UTC-6, sin cambio de horario de verano
+
+// Retorna fecha 'YYYY-MM-DD' en zona horaria de Guatemala
 function todayGuatemala() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' });
 }
 
-// Get the Guatemala date ('YYYY-MM-DD') of a stored match datetime.
-// Datetimes are stored as 'YYYY-MM-DDTHH:MM:SS' in UTC (from import) or as
-// typed by the admin in datetime-local (treated as local browser time).
-// We display times using the browser's locale but compare dates in Guatemala time.
+// Retorna la fecha 'YYYY-MM-DD' de un datetime almacenado, en zona Guatemala.
+// Datetimes se almacenan como UTC ISO (con sufijo Z) o sin sufijo (se trata como UTC).
 function matchDateGT(datetime) {
-  // If it already has a Z or +/- timezone suffix, parse as-is.
-  // Otherwise assume it's the UTC value we stored during import.
   const d = new Date(datetime.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(datetime)
     ? datetime
-    : datetime + 'Z'); // treat stored value as UTC
+    : datetime + 'Z');
   return d.toLocaleDateString('en-CA', { timeZone: 'America/Guatemala' });
 }
 
-// Format a match datetime for display in Guatemala time
+// Formatea datetime para mostrar en zona Guatemala
 function fmtDatetimeGT(datetime) {
   const d = new Date(datetime.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(datetime)
     ? datetime
     : datetime + 'Z');
-  const day = d.toLocaleDateString('es', { timeZone: 'America/Guatemala', weekday: 'short', month: 'short', day: 'numeric' });
-  const time = d.toLocaleTimeString('es', { timeZone: 'America/Guatemala', hour: '2-digit', minute: '2-digit' });
+  const day  = d.toLocaleDateString('es',  { timeZone: 'America/Guatemala', weekday: 'short', month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString('es',  { timeZone: 'America/Guatemala', hour: '2-digit', minute: '2-digit' });
   return day + ' ' + time;
+}
+
+// Formatea solo la hora en Guatemala
+function fmtTime(datetime) {
+  const d = new Date(datetime.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(datetime)
+    ? datetime : datetime + 'Z');
+  return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Guatemala' });
+}
+
+// Formatea fecha corta (ej: "12 jun")
+function fmtDateShort(datetime) {
+  const d = new Date(datetime.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(datetime)
+    ? datetime : datetime + 'Z');
+  return d.toLocaleDateString('es', { day: 'numeric', month: 'short', timeZone: 'America/Guatemala' });
+}
+
+// Formatea fecha larga (ej: "viernes, 12 de junio")
+function fmtDateLong(datetime, options = {}) {
+  const d = typeof datetime === 'string'
+    ? new Date((datetime.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(datetime)) ? datetime : datetime + 'Z')
+    : datetime;
+  return d.toLocaleDateString('es', { timeZone: 'America/Guatemala', ...options });
+}
+
+// ─── Render: My Stats (mini grid en tab quiniela) ────────────────────────────
+function renderMyStats() {
+  const grid = document.getElementById('my-stats-grid');
+  if (!grid || !state.currentUser) return;
+  const u = state.currentUser;
+  let pts = 0, exact = 0, result = 0, played = 0, pending = 0;
+  state.matches.forEach(m => {
+    if (m.result && m.result.home !== '') {
+      played++;
+      const p = calcPoints(u.id, m);
+      pts += p;
+      if (p === state.points.exact) exact++;
+      else if (p === state.points.result) result++;
+    } else {
+      pending++;
+    }
+  });
+  const color = colorFor(u.name);
+  grid.innerHTML = `
+    <div class="stat-card" style="border-left:3px solid ${color}">
+      <div class="stat-label">Mis puntos</div>
+      <div class="stat-value" style="color:${color}">${pts}</div>
+    </div>
+    <div class="stat-card" style="border-left:3px solid var(--success-text)">
+      <div class="stat-label">Marcador exacto</div>
+      <div class="stat-value" style="color:var(--success-text)">${exact}</div>
+    </div>
+    <div class="stat-card" style="border-left:3px solid var(--accent)">
+      <div class="stat-label">Resultado acertado</div>
+      <div class="stat-value" style="color:var(--accent)">${result}</div>
+    </div>
+    <div class="stat-card" style="border-left:3px solid var(--text-secondary)">
+      <div class="stat-label">Por jugar</div>
+      <div class="stat-value">${pending}</div>
+    </div>
+  `;
+}
+
+// ─── Date filter para Mi quiniela ────────────────────────────────────────────
+function populateDateFilter() {
+  const sel = document.getElementById('date-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const today = todayGuatemala();
+  const dates = [...new Set(
+    state.matches.map(m => m.datetime ? matchDateGT(m.datetime) : null).filter(Boolean)
+  )].sort();
+  sel.innerHTML = '<option value="all">Todos los partidos</option>';
+  dates.forEach(d => {
+    const label = fmtDateLong(d + 'T12:00:00Z', { weekday: 'long', day: 'numeric', month: 'long' });
+    const o = document.createElement('option');
+    o.value = d;
+    o.textContent = (d === today ? '📅 Hoy — ' : '') + label.charAt(0).toUpperCase() + label.slice(1);
+    sel.appendChild(o);
+  });
+  if (current && current !== 'all') {
+    sel.value = current;
+  } else if (!current || current === 'all') {
+    if (dates.includes(today)) sel.value = today;
+  }
+}
+
+function stepDay(dir) {
+  const sel = document.getElementById('date-filter');
+  if (!sel) return;
+  const opts = [...sel.options].map(o => o.value);
+  const i = Math.max(0, Math.min(opts.length - 1, opts.indexOf(sel.value) + dir));
+  sel.value = opts[i];
+  renderMatches();
 }
 
 // ─── Render: Matches ─────────────────────────────────────────────────────────
@@ -414,6 +606,11 @@ function renderMatches() {
   const container = document.getElementById('matches-list');
   const editUser = state.editingAs;
   if (!editUser) { container.innerHTML = ''; return; }
+
+  renderMyStats();
+  populateDateFilter();
+
+  const dateFilter = document.getElementById('date-filter')?.value || 'all';
 
   if (state.matches.length === 0) {
     container.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--text-secondary)">
@@ -424,31 +621,15 @@ function renderMatches() {
   }
 
   const today = todayGuatemala();
-  // Unique sorted dates (in Guatemala time)
-  const dates = [...new Set(state.matches.map(m => matchDateGT(m.datetime)))].sort();
-
-  // Build select dropdown
-  let selectHtml = `<div class="date-filter-bar">
-    <label style="font-size:13px;color:var(--text-secondary);font-weight:500">Fecha:</label>
-    <select class="date-select" onchange="filterMatches(this.value)">
-      <option value="all" ${_matchDateFilter === 'all' ? 'selected' : ''}>Todos los partidos</option>
-      <option value="today" ${_matchDateFilter === 'today' ? 'selected' : ''}>Hoy (${new Date(today + 'T12:00:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' })})</option>`;
-  dates.forEach(d => {
-    const label = new Date(d + 'T12:00:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
-    selectHtml += `<option value="${d}" ${_matchDateFilter === d ? 'selected' : ''}>${label}</option>`;
-  });
-  selectHtml += `</select></div>`;
-
-  // Apply filter
-  let matches = [...state.matches];
-  if (_matchDateFilter === 'today') {
+  let matches = [...state.matches].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  if (dateFilter === 'today') {
     matches = matches.filter(m => matchDateGT(m.datetime) === today);
-  } else if (_matchDateFilter !== 'all') {
-    matches = matches.filter(m => matchDateGT(m.datetime) === _matchDateFilter);
+  } else if (dateFilter !== 'all') {
+    matches = matches.filter(m => matchDateGT(m.datetime) === dateFilter);
   }
 
   if (matches.length === 0) {
-    container.innerHTML = selectHtml + `<div style="text-align:center;padding:3rem;color:var(--text-secondary)">
+    container.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--text-secondary)">
       <i class="ti ti-calendar-off" style="font-size:28px;display:block;margin-bottom:10px"></i>
       No hay partidos en esta fecha
     </div>`;
@@ -456,7 +637,7 @@ function renderMatches() {
   }
 
   const phases = [...new Set(matches.map(m => m.phase))];
-  let html = selectHtml;
+  let html = '';
 
   phases.forEach(phase => {
     const ms = matches.filter(m => m.phase === phase);
@@ -479,10 +660,11 @@ function renderMatches() {
       }
 
       const dtStr = fmtDatetimeGT(m.datetime);
+      const np = normPick(pick);
 
       const inputsOrPick = locked || resultKnown
         ? `<span style="font-size:14px;font-weight:600;min-width:64px;text-align:center;color:var(--text-secondary)">
-             ${pick.home !== '' ? pick.home + ' – ' + pick.away : '– –'}
+             ${pickSet(pick) ? np.home + ' – ' + np.away : '– –'}
            </span>`
         : `<input type="number" min="0" max="20" class="score-input" value="${pick.home}"
              placeholder="0" onchange="setPick('${editUser.id}','${m.id}','home',this.value)">
@@ -493,9 +675,11 @@ function renderMatches() {
       html += `<div class="match-row">
         <div class="match-teams">
           <div class="match-teams-row">
+            <span class="team-flag">${flagImg(m.home)}</span>
             <span class="team-name right">${m.home}</span>
             ${inputsOrPick}
             <span class="team-name">${m.away}</span>
+            <span class="team-flag">${flagImg(m.away)}</span>
           </div>
           <div class="match-meta">
             <span>${dtStr}</span>
@@ -513,11 +697,6 @@ function renderMatches() {
   container.innerHTML = html;
 }
 
-function filterMatches(filter) {
-  _matchDateFilter = filter;
-  renderMatches();
-}
-
 async function setPick(userId, matchId, side, val) {
   if (!state.picks[userId]) state.picks[userId] = {};
   if (!state.picks[userId][matchId]) state.picks[userId][matchId] = { home: '', away: '' };
@@ -526,18 +705,43 @@ async function setPick(userId, matchId, side, val) {
 }
 
 // ─── Render: Tabla ───────────────────────────────────────────────────────────
+function rankingHtml() {
+  if (!state.users.length) return '';
+  const rows = getTableData().map((d, i) => {
+    const color = colorFor(d.user.name);
+    const pos = i < 3 ? ['🥇','🥈','🥉'][i] : (i + 1);
+    return '<div class="cmp-rank-row">'
+      + '<span class="cmp-rank-pos">' + pos + '</span>'
+      + '<span class="cmp-avatar" style="background:' + color + '30;color:' + color + '">' + initials(d.user.name) + '</span>'
+      + '<span class="cmp-rank-name">' + d.user.name.split(' ')[0] + '</span>'
+      + '<span class="cmp-rank-pts">' + d.pts + '<small> pts</small></span>'
+      + '</div>';
+  }).join('');
+  return '<div class="cmp-rank"><div class="cmp-rank-head"><i class="ti ti-trophy"></i> Ranking general</div>' + rows + '</div>';
+}
+
 function renderTabla() {
-  const data = getTableData();
+  const rankEl = document.getElementById('tabla-rank');
+  if (!rankEl) return;
   const totalPlayed = state.matches.filter(m => m.result && m.result.home !== '').length;
+
+  rankEl.innerHTML = rankingHtml();
 
   document.getElementById('tabla-stats').innerHTML = `
     <div class="stat-card"><div class="stat-label">Partidos jugados</div><div class="stat-value">${totalPlayed}</div></div>
     <div class="stat-card"><div class="stat-label">Partidos totales</div><div class="stat-value">${state.matches.length}</div></div>
     <div class="stat-card"><div class="stat-label">Participantes</div><div class="stat-value">${state.users.length}</div></div>
-    <div class="stat-card"><div class="stat-label">Pts por exacto</div><div class="stat-value">${state.points.exact}</div></div>
+    <div class="stat-card"><div class="stat-label">Pts exacto</div><div class="stat-value">${state.points.exact}</div></div>
+    <div class="stat-card"><div class="stat-label">Pts resultado</div><div class="stat-value">${state.points.result}</div></div>
   `;
+}
 
+// ─── Render: Stats ───────────────────────────────────────────────────────────
+function renderStats() {
+  if (!document.getElementById('stats-body')) return;
+  const data = getTableData();
   const medals = ['🥇', '🥈', '🥉'];
+
   document.getElementById('tabla-body').innerHTML = data.map((d, i) => {
     const color = colorFor(d.user.name);
     return `<tr>
@@ -555,11 +759,6 @@ function renderTabla() {
       <td class="text-right" style="color:var(--text-secondary)">${d.played}</td>
     </tr>`;
   }).join('');
-}
-
-// ─── Render: Stats ───────────────────────────────────────────────────────────
-function renderStats() {
-  const data = getTableData();
 
   document.getElementById('stats-body').innerHTML = data.map(d => {
     const total = d.played;
@@ -586,6 +785,30 @@ function renderStats() {
     </tr>`;
   }).join('');
 
+  // Destacados
+  const arr = data.map(d => ({
+    name: d.user.name.split(' ')[0],
+    aciertos: d.exact + d.result,
+    draws: countDraws(d.user.id),
+    played: d.played,
+    pct: d.played > 0 ? Math.round((d.exact + d.result) / d.played * 100) : 0
+  }));
+  const playedArr = arr.filter(x => x.played > 0);
+  const maxBy = (pool, k) => pool.length ? pool.reduce((b, x) => x[k] > b[k] ? x : b) : null;
+  const ifPos = (w, k) => (w && w[k] > 0) ? w : null;
+  const statCard = (label, w, fmt) =>
+    `<div class="stat-card">
+      <div class="stat-label">${label}</div>
+      <div class="stat-value" style="font-size:20px">${w ? w.name : '—'}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:2px">${w ? fmt(w) : 'Aún sin datos'}</div>
+    </div>`;
+  const hl = document.getElementById('stats-highlights');
+  if (hl) hl.innerHTML =
+      statCard('Quién acierta más', ifPos(maxBy(playedArr, 'aciertos'), 'aciertos'), w => w.aciertos + ' aciertos')
+    + statCard('Rey del empate',    ifPos(maxBy(arr, 'draws'), 'draws'),             w => w.draws + ' empates predichos')
+    + statCard('Mejor precisión',   ifPos(maxBy(playedArr, 'pct'), 'pct'),           w => w.pct + '% de aciertos');
+
+  // Tabla detallada de todos los picks
   const played = state.matches.filter(m => m.result && m.result.home !== '');
   if (played.length === 0) {
     document.getElementById('all-picks-container').innerHTML =
@@ -604,7 +827,8 @@ function renderStats() {
     state.users.forEach(u => {
       const pick = state.picks[u.id]?.[m.id];
       const pts = calcPoints(u.id, m);
-      const pickStr = pick && pick.home !== '' ? `${pick.home}–${pick.away}` : '–';
+      const np = normPick(pick);
+      const pickStr = pickSet(pick) ? `${np.home}–${np.away}` : '–';
       const cls = pts === state.points.exact ? 'badge-success'
                 : pts === state.points.result ? 'badge-info' : 'badge-gray';
       html += `<td style="text-align:center"><span class="badge ${cls}">${pickStr}</span></td>`;
@@ -616,14 +840,174 @@ function renderStats() {
   document.getElementById('all-picks-container').innerHTML = html;
 }
 
-// ─── Render: Admin Matches ───────────────────────────────────────────────────
-let _adminDateFilter = 'today';
-
-function filterAdminMatches(val) {
-  _adminDateFilter = val;
-  renderAdminMatches();
+// ─── Render: Comparar (tarjetas colapsables estilo oscar) ────────────────────
+function populateCmpDates() {
+  const sel = document.getElementById('cmp-date-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const today = todayGuatemala();
+  const dates = [...new Set(
+    state.matches.map(m => m.datetime ? matchDateGT(m.datetime) : null).filter(Boolean)
+  )].sort();
+  sel.innerHTML = '<option value="all">Todos los partidos</option>';
+  dates.forEach(d => {
+    const label = fmtDateLong(d + 'T12:00:00Z', { weekday: 'long', day: 'numeric', month: 'long' });
+    const o = document.createElement('option');
+    o.value = d;
+    o.textContent = (d === today ? '📅 Hoy — ' : '') + label.charAt(0).toUpperCase() + label.slice(1);
+    sel.appendChild(o);
+  });
+  if (current && current !== 'all') {
+    sel.value = current;
+  } else if (!current || current === 'all') {
+    if (dates.includes(today)) sel.value = today;
+  }
 }
 
+function stepCmpDay(dir) {
+  const sel = document.getElementById('cmp-date-filter');
+  if (!sel) return;
+  const opts = [...sel.options].map(o => o.value);
+  const i = Math.max(0, Math.min(opts.length - 1, opts.indexOf(sel.value) + dir));
+  sel.value = opts[i];
+  renderComparar();
+}
+
+function toggleCmpGroup(key) {
+  const el = document.getElementById('cmpg-' + key);
+  if (el) el.classList.toggle('open');
+}
+
+function toggleCmpCard(matchId) {
+  const el = document.getElementById('cmpc-' + matchId);
+  if (el) el.classList.toggle('open');
+}
+
+function renderComparar() {
+  const listEl = document.getElementById('comparar-list');
+  if (!listEl) return;
+
+  populateCmpDates();
+  const dayFilter = document.getElementById('cmp-date-filter')?.value || 'all';
+  let matches = [...state.matches].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  if (dayFilter !== 'all') matches = matches.filter(m => m.datetime && matchDateGT(m.datetime) === dayFilter);
+
+  if (matches.length === 0) {
+    listEl.innerHTML = '<div class="cmp-empty">No hay partidos para este día. Usa ‹ › para ver otro día.</div>';
+    return;
+  }
+
+  const groups = { done: [], live: [], pend: [] };
+  matches.forEach(m => {
+    if (m.result && m.result.home !== '') groups.done.push(m);
+    else if (isLocked(m)) groups.live.push(m);
+    else groups.pend.push(m);
+  });
+
+  const meta = {
+    done: { label: 'Finalizados', icon: 'ti-circle-check' },
+    live: { label: 'En curso',    icon: 'ti-ball-football' },
+    pend: { label: 'Pendientes',  icon: 'ti-clock' }
+  };
+  const order = ['done', 'live', 'pend'];
+  const firstVisible = order.find(k => groups[k].length);
+
+  let html = '';
+  order.forEach(key => {
+    const ms = groups[key];
+    if (!ms.length) return;
+    const open = key === 'done' || (!groups.done.length && key === firstVisible);
+    html += '<div class="cmp-group' + (open ? ' open' : '') + '" id="cmpg-' + key + '">'
+      + '<button class="cmp-group-head" onclick="toggleCmpGroup(\'' + key + '\')">'
+      + '<i class="ti ' + meta[key].icon + ' cmp-group-icon"></i>'
+      + '<span class="cmp-group-title">' + meta[key].label + '</span>'
+      + '<span class="cmp-group-count">' + ms.length + '</span>'
+      + '<i class="ti ti-chevron-down cmp-chev"></i>'
+      + '</button>'
+      + '<div class="cmp-group-wrap"><div class="cmp-group-body">'
+      + ms.map(cmpCard).join('')
+      + '</div></div></div>';
+  });
+
+  listEl.innerHTML = html;
+}
+
+function cmpCard(m) {
+  const hasResult = m.result && m.result.home !== '';
+  const meId = state.currentUser?.id;
+
+  const badgeFor = pts => pts === state.points.exact ? 'badge-success' : pts > 0 ? 'badge-info' : 'badge-danger';
+
+  let winnersHtml = '';
+  if (hasResult) {
+    const scored = state.users
+      .filter(u => pickSet(state.picks[u.id]?.[m.id]))
+      .map(u => ({ u, pts: calcPoints(u.id, m) }));
+    const max = scored.reduce((mx, s) => Math.max(mx, s.pts), 0);
+    const winners = max > 0 ? scored.filter(s => s.pts === max) : [];
+    winnersHtml = winners.length
+      ? winners.map(s => '<span class="cmp-win">🥇 ' + s.u.name.split(' ')[0]
+          + '<span class="badge-win">+' + s.pts + '</span></span>').join('')
+      : '<span class="cmp-noone">Nadie acertó este partido</span>';
+  }
+
+  const myPick = meId ? state.picks[meId]?.[m.id] : null;
+  const myHas = pickSet(myPick);
+  const myNp = normPick(myPick);
+  const myPts = hasResult && myHas ? calcPoints(meId, m) : null;
+  const mineStr = myHas
+    ? myNp.home + ' - ' + myNp.away + (myPts !== null ? ' <span class="cmp-mine-pts">(+' + myPts + ')</span>' : '')
+    : '<span class="cmp-noone">Sin predicción</span>';
+
+  const detailHtml = state.users
+    .map(u => {
+      const pk = state.picks[u.id]?.[m.id];
+      const has = pickSet(pk);
+      const np = normPick(pk);
+      const pts = hasResult && has ? calcPoints(u.id, m) : null;
+      return { u, has, np, pts };
+    })
+    .sort((a, b) => (b.pts ?? -1) - (a.pts ?? -1))
+    .map(r => {
+      const color = colorFor(r.u.name);
+      const pickStr = r.has ? r.np.home + '-' + r.np.away : '–';
+      const cls = r.pts !== null ? badgeFor(r.pts) : 'badge-gray';
+      // Ocultar picks ajenos si no está bloqueado ni hay resultado
+      const visible = isLocked(m) || hasResult || (r.u.id === meId);
+      const displayStr = visible ? pickStr : '🔒';
+      return '<div class="cmp-pred' + (r.u.id === meId ? ' me' : '') + '">'
+        + '<span class="cmp-avatar" style="background:' + color + '30;color:' + color + '">' + initials(r.u.name) + '</span>'
+        + '<span class="cmp-pred-name">' + r.u.name.split(' ')[0] + '</span>'
+        + '<span class="cmp-pred-pick">' + displayStr + '</span>'
+        + '<span class="badge ' + cls + ' cmp-pred-badge">' + (r.pts !== null && visible ? '+' + r.pts : '·') + '</span>'
+        + '</div>';
+    }).join('');
+
+  const center = hasResult
+    ? '<span class="cmp-score">' + m.result.home + ' - ' + m.result.away + '</span>'
+    : '<span class="cmp-vs">vs</span>';
+  const subline = hasResult
+    ? 'Resultado final'
+    : fmtDateShort(m.datetime) + ' · ' + fmtTime(m.datetime);
+
+  return '<div class="cmp-card" id="cmpc-' + m.id + '">'
+    + '<div class="cmp-fixture">'
+    +   '<span class="cmp-team home">' + m.home + ' ' + flagImg(m.home) + '</span>'
+    +   center
+    +   '<span class="cmp-team away">' + flagImg(m.away) + ' ' + m.away + '</span>'
+    + '</div>'
+    + '<div class="cmp-subline">' + subline + '</div>'
+    + (winnersHtml ? '<div class="cmp-winners">' + winnersHtml + '</div>' : '')
+    + '<div class="cmp-mine"><span class="cmp-mine-label">⭐ Tu predicción</span>'
+    +   '<span class="cmp-mine-val">' + mineStr + '</span></div>'
+    + '<button class="cmp-toggle" onclick="toggleCmpCard(\'' + m.id + '\')">'
+    +   '<span class="cmp-toggle-label"></span><i class="ti ti-chevron-down cmp-chev"></i>'
+    + '</button>'
+    + '<div class="cmp-detail-wrap"><div class="cmp-detail">' + detailHtml + '</div></div>'
+    + '</div>';
+}
+
+// ─── Render: Admin Matches ───────────────────────────────────────────────────
 function renderAdminMatches() {
   const container = document.getElementById('admin-matches-list');
   if (state.matches.length === 0) {
@@ -631,36 +1015,36 @@ function renderAdminMatches() {
     return;
   }
 
-  const today = todayGuatemala();
-  const dates = [...new Set(state.matches.map(m => matchDateGT(m.datetime)))].sort();
-
-  // Build date selector
-  let selHtml = `<div class="date-filter-bar" style="margin-bottom:12px">
-    <label style="font-size:13px;color:var(--text-secondary);font-weight:500">Fecha:</label>
-    <select class="date-select" onchange="filterAdminMatches(this.value)">
-      <option value="all" ${_adminDateFilter === 'all' ? 'selected' : ''}>Todos los partidos</option>
-      <option value="today" ${_adminDateFilter === 'today' ? 'selected' : ''}>Hoy</option>`;
-  dates.forEach(d => {
-    const label = new Date(d + 'T12:00:00').toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
-    selHtml += `<option value="${d}" ${_adminDateFilter === d ? 'selected' : ''}>${label}</option>`;
-  });
-  selHtml += `</select></div>`;
-
-  // Filter matches
-  let matches = [...state.matches].sort((a,b) => new Date(a.datetime) - new Date(b.datetime));
-  if (_adminDateFilter === 'today') {
-    matches = matches.filter(m => matchDateGT(m.datetime) === today);
-  } else if (_adminDateFilter !== 'all') {
-    matches = matches.filter(m => matchDateGT(m.datetime) === _adminDateFilter);
+  const adminSel = document.getElementById('admin-date-filter');
+  if (adminSel) {
+    const currentVal = adminSel.value;
+    const dates = [...new Set(
+      state.matches.map(m => m.datetime ? matchDateGT(m.datetime) : null).filter(Boolean)
+    )].sort();
+    adminSel.innerHTML = '<option value="all">Todas las fechas</option>';
+    dates.forEach(d => {
+      const label = fmtDateLong(d + 'T12:00:00Z', { weekday: 'short', day: 'numeric', month: 'short' });
+      const o = document.createElement('option');
+      o.value = d; o.textContent = label;
+      adminSel.appendChild(o);
+    });
+    if (currentVal) adminSel.value = currentVal;
   }
 
+  const adminDateFilter = document.getElementById('admin-date-filter')?.value || 'all';
+  let matches = adminDateFilter === 'all'
+    ? state.matches
+    : state.matches.filter(m => m.datetime && matchDateGT(m.datetime) === adminDateFilter);
+
+  matches = [...matches].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+
   if (matches.length === 0) {
-    container.innerHTML = selHtml + '<p style="font-size:13px;color:var(--text-secondary);padding-top:8px">No hay partidos en esta fecha.</p>';
+    container.innerHTML = '<p style="font-size:13px;color:var(--text-secondary)">No hay partidos para esta fecha.</p>';
     return;
   }
 
-  container.innerHTML = selHtml + matches.map(m => {
-    const dtStr = fmtDatetimeGT(m.datetime);
+  container.innerHTML = matches.map(m => {
+    const dtStr = fmtDateShort(m.datetime) + ' ' + fmtTime(m.datetime);
     const hasResult = m.result && m.result.home !== '';
 
     return `<div class="admin-match-row">
@@ -716,8 +1100,6 @@ async function confirmDelete() {
   renderAdminMatches();
   renderMatches();
 }
-
-// Keep old deleteMatch as alias for backwards compat
 async function deleteMatch(matchId) { openDeleteModal(matchId); }
 
 let _editMatchId = null;
@@ -833,8 +1215,7 @@ function resetEditAs(e) {
   renderMatches();
 }
 
-
-// ─── Importar partidos desde openfootball (sin API key) ──────────────────────
+// ─── Importar partidos (openfootball, con parseo robusto de timezone) ─────────
 async function importFixtures() {
   const btn = document.getElementById('btn-import');
   btn.textContent = 'Importando...';
@@ -847,21 +1228,31 @@ async function importFixtures() {
     let added = 0;
     const existingKeys = new Set(state.matches.map(m => m.home + '|' + m.away));
 
-    // openfootball 2026 format: data.matches[] with round, date, time, team1, team2, group, score
     const matches = data.matches || [];
+    const pad = n => String(n).padStart(2, '0');
     matches.forEach(m => {
       const home = m.team1;
       const away = m.team2;
       if (!home || !away) return;
       if (existingKeys.has(home + '|' + away)) return;
 
-      // Parse datetime - time comes as "13:00 UTC-6" (Guatemala time)
-      // Convert to UTC by adding 6 hours, store as UTC ISO string
-      const timeStr = (m.time || '12:00').split(' ')[0];
-      const localDt = new Date(m.date + 'T' + timeStr + ':00-06:00'); // parse as UTC-6
-      const datetime = localDt.toISOString().slice(0, 19) + 'Z'; // store as UTC
+      // Parse datetime - time comes as "13:00 UTC-6", convert to UTC ISO.
+      // Parseo robusto: lee el offset real del JSON (puede ser UTC-4 en horario de verano de otras zonas)
+      const timeParts = (m.time || '12:00 UTC-6').split(' ');
+      const timeStr = timeParts[0];
+      const tzStr   = timeParts[1] || 'UTC-6';
+      const tzMatch = tzStr.match(/UTC([+-]\d+)/);
+      const tzOffset = tzMatch ? parseInt(tzMatch[1]) : -6;
+      const [th, tm] = timeStr.split(':').map(Number);
+      const [dy, dmo, dd] = m.date.split('-').map(Number);
+      const utcMs = Date.UTC(dy, dmo - 1, dd, th, tm, 0) - tzOffset * 60 * 60 * 1000;
+      const utcDate = new Date(utcMs);
+      const datetime = utcDate.getUTCFullYear() + '-'
+        + pad(utcDate.getUTCMonth()+1) + '-'
+        + pad(utcDate.getUTCDate()) + 'T'
+        + pad(utcDate.getUTCHours()) + ':'
+        + pad(utcDate.getUTCMinutes()) + ':00Z';
 
-      // Phase from round
       const round = (m.round || 'Fase de grupos').toLowerCase();
       let phase = 'Fase de grupos';
       if (round.includes('final') && round.includes('cuarto')) phase = 'Cuartos de final';
@@ -871,7 +1262,6 @@ async function importFixtures() {
       else if (round.includes('final')) phase = 'Final';
       else if (m.group) phase = 'Fase de grupos - ' + m.group;
 
-      // Score if available
       let result = { home: '', away: '' };
       if (m.score && m.score.ft) {
         result = { home: String(m.score.ft[0]), away: String(m.score.ft[1]) };
@@ -897,12 +1287,11 @@ async function importFixtures() {
   }
 }
 
-// ─── Actualizar resultados desde API-Football ────────────────────────────────
-// ─── Actualizar resultados desde API-Football ────────────────────────────────
+// ─── Actualizar resultados desde API-Football via Vercel ─────────────────────
 async function syncResults() {
   const cfg = getApiConfig();
   if (!cfg.apiKey) {
-    alert('Agrega tu API key de API-Football en el panel ⚙️ Configuración de API-Football arriba.\nRegistrate gratis en: https://dashboard.api-football.com/register');
+    alert('Agrega tu API key en el panel ⚙️ Configuración de API-Football.');
     document.getElementById('api-config-panel').open = true;
     return;
   }
@@ -911,7 +1300,6 @@ async function syncResults() {
   btn.disabled = true;
 
   try {
-    // Llamamos a nuestra Vercel Function /api/resultados (mismo dominio, sin CORS)
     let url = '/api/resultados?key=' + encodeURIComponent(cfg.apiKey);
     if (cfg.leagueId)   url += '&leagueId='   + encodeURIComponent(cfg.leagueId);
     if (cfg.season)     url += '&season='      + encodeURIComponent(cfg.season);
@@ -921,15 +1309,12 @@ async function syncResults() {
     const data = await r.json();
     if (!data.response) throw new Error(data.error || 'Respuesta inválida de API-Football');
 
-    // Normalize name for fuzzy matching
     function norm(s) {
       return (s || '').toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/\b(de|la|los|las|el|the|republic|united|states|of|ivory|coast|korea|dpr|south|north)\b/g, '')
         .replace(/[^a-z0-9]/g, '');
     }
-
-    // Alias map: nombres alternativos que usa la API vs los que usa openfootball
     const ALIASES = {
       'cote divoire': 'ivory coast',
       'ivoire': 'ivory coast',
@@ -951,21 +1336,16 @@ async function syncResults() {
       const h = fix.teams.home.name, a = fix.teams.away.name;
       const sh = String(fix.goals.home ?? ''), sa = String(fix.goals.away ?? '');
       if (sh === '' || sa === '') return;
-
       const nh = canonical(h), na = canonical(a);
-
       const match = state.matches.find(m => {
         const mh = canonical(m.home), ma = canonical(m.away);
-        // Both teams must share at least 4 chars with API name
         const overlaps = (x, y) => {
           const short = x.length < y.length ? x : y;
           return short.length >= 3 && (x.includes(y.slice(0,4)) || y.includes(x.slice(0,4)));
         };
         return overlaps(mh, nh) && overlaps(ma, na);
       });
-
       debugLines.push(`API: "${h}" vs "${a}" (${sh}-${sa}) → ${match ? '✓ ' + match.home + ' vs ' + match.away : '✗ NO MATCH'}`);
-
       if (match && (match.result.home !== sh || match.result.away !== sa)) {
         match.result = { home: sh, away: sa };
         updated++;
@@ -975,7 +1355,6 @@ async function syncResults() {
     await saveState();
     renderAdminMatches(); renderTabla(); renderStats(); renderMatches();
 
-    // Mostrar resultado en modal visible
     const matched   = debugLines.filter(l => l.includes('✓'));
     const unmatched = debugLines.filter(l => l.includes('✗'));
     const diag = data.diag || {};
@@ -985,7 +1364,6 @@ async function syncResults() {
       `✅ Partidos finalizados (FT): ${diag.finishedFixtures ?? data.response.length}`,
       diag.statusesFound?.length ? `📊 Estados encontrados: ${diag.statusesFound.join(', ')}` : '',
       diag.rateLimit?.remaining != null ? `🔑 Llamadas API restantes hoy: ${diag.rateLimit.remaining}/${diag.rateLimit.limit}` : '',
-      diag.accountInfo?.length  ? `⚠️ Errores API: ${JSON.stringify(diag.accountInfo)}` : '',
     ].filter(Boolean);
 
     const report = [
@@ -998,7 +1376,7 @@ async function syncResults() {
 
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
-    overlay.innerHTML = `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto">
+    overlay.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto">
       <div style="font-size:15px;line-height:1.7">${report}</div>
       <button onclick="this.closest('div[style]').remove()" style="margin-top:16px;padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Cerrar</button>
     </div>`;
@@ -1012,97 +1390,135 @@ async function syncResults() {
     alert('Error al sincronizar: ' + e.message);
   }
 }
-function filterComparar(filter, btn) {
-  _compararFilter = filter;
-  document.querySelectorAll('.comparar-filter-btn').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  renderComparar(filter);
-}
 
-function renderComparar(filter = 'today') {
-  const container = document.getElementById('comparar-list');
-  if (!container) return;
+// ─── Verificar horarios contra openfootball ──────────────────────────────────
+async function verifySchedule() {
+  const btn = document.getElementById('btn-verify-schedule');
+  const out = document.getElementById('verify-schedule-output');
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+  out.innerHTML = '';
 
-  const today = todayGuatemala();
-  let matches = [...state.matches].sort((a, b) => new Date(a.datetime) - new Date(b.datetime));
+  try {
+    const res = await fetch('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json');
+    if (!res.ok) throw new Error('No se pudo conectar con openfootball');
+    const data = await res.json();
+    const matches = data.matches || [];
 
-  if (filter === 'today')   matches = matches.filter(m => matchDateGT(m.datetime) === today);
-  if (filter === 'pending') matches = matches.filter(m => !m.result || m.result.home === '');
-  if (filter === 'done')    matches = matches.filter(m => m.result && m.result.home !== '');
-
-  if (matches.length === 0) {
-    container.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--text-secondary)">No hay partidos en esta categoría.</div>';
-    return;
-  }
-
-  const phases = [...new Set(matches.map(m => m.phase))];
-  let html = '';
-
-  phases.forEach(phase => {
-    const ms = matches.filter(m => m.phase === phase);
-    html += `<div class="phase-group"><div class="card"><div class="phase-header">${phase}</div>`;
-
-    ms.forEach(m => {
-      const hasResult = m.result && m.result.home !== '';
-      const locked = isLocked(m);
-      const dtStr = fmtDatetimeGT(m.datetime);
-
-      // Match header
-      html += `<div style="padding:12px 0;border-bottom:0.5px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">
-          <span style="font-weight:600;font-size:14px">${m.home}</span>
-          <span style="color:var(--text-secondary);font-size:12px">vs</span>
-          <span style="font-weight:600;font-size:14px">${m.away}</span>
-          <span style="flex:1"></span>
-          <span style="font-size:11px;color:var(--text-secondary)">${dtStr}</span>
-          ${hasResult
-            ? `<span class="badge badge-success">Resultado: ${m.result.home}–${m.result.away}</span>`
-            : locked
-            ? `<span class="badge badge-warning"><i class="ti ti-lock"></i> En curso / bloqueado</span>`
-            : `<span class="badge badge-gray">Por jugar</span>`}
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">`;
-
-      // Each user's pick — solo visible cuando el partido está bloqueado (< 1h) o ya tiene resultado.
-      // El usuario actual siempre puede ver su propio pronóstico.
-      state.users.forEach(u => {
-        const pick = state.picks[u.id]?.[m.id];
-        const hasPick = pick && pick.home !== '' && pick.away !== '';
-        const isCurrentUser = state.currentUser && u.id === state.currentUser.id;
-        const color = colorFor(u.name);
-        let badgeCls = 'badge-gray';
-        let pts = 0;
-        if (hasResult && hasPick) {
-          pts = calcPoints(u.id, m);
-          if (pts === state.points.exact) badgeCls = 'badge-success';
-          else if (pts === state.points.result) badgeCls = 'badge-info';
-          else badgeCls = 'badge-danger';
-        }
-
-        // Los pronósticos ajenos se ocultan hasta 1 hora antes del partido
-        const pickVisible = locked || hasResult || isCurrentUser;
-
-        const pickLabel = pickVisible
-          ? `<span class="badge ${badgeCls}" style="font-size:11px">
-               ${hasPick ? pick.home + '–' + pick.away : '–'}
-               ${hasResult && hasPick ? ' · +' + pts : ''}
-             </span>`
-          : `<span class="badge badge-gray" style="font-size:11px;opacity:0.6" title="Se revela 1 hora antes del partido">🔒</span>`;
-
-        html += `<div style="display:flex;align-items:center;gap:6px;background:var(--bg-secondary);border-radius:var(--radius);padding:5px 10px">
-          <div class="avatar" style="width:22px;height:22px;font-size:9px;background:${color}30;color:${color};flex-shrink:0">${initials(u.name)}</div>
-          <span style="font-size:12px;font-weight:500">${u.name.split(' ')[0]}</span>
-          ${pickLabel}
-        </div>`;
-      });
-
-      html += `</div></div>`;
+    const pad = n => String(n).padStart(2, '0');
+    const sourceMap = {};
+    matches.forEach(m => {
+      if (!m.team1 || !m.team2) return;
+      const timeParts = (m.time || '12:00 UTC-6').split(' ');
+      const timeStr = timeParts[0];
+      const tzStr   = timeParts[1] || 'UTC-6';
+      const tzMatch = tzStr.match(/UTC([+-]\d+)/);
+      const tzOffset = tzMatch ? parseInt(tzMatch[1]) : -6;
+      const [th, tm] = timeStr.split(':').map(Number);
+      const [dy, dmo, dd] = m.date.split('-').map(Number);
+      const utcMs = Date.UTC(dy, dmo - 1, dd, th, tm, 0) - tzOffset * 60 * 60 * 1000;
+      const utcDate = new Date(utcMs);
+      const utcISO = utcDate.getUTCFullYear() + '-'
+        + pad(utcDate.getUTCMonth()+1) + '-'
+        + pad(utcDate.getUTCDate()) + 'T'
+        + pad(utcDate.getUTCHours()) + ':'
+        + pad(utcDate.getUTCMinutes()) + ':00Z';
+      sourceMap[m.team1 + '|' + m.team2] = { utcISO, rawTime: m.time, date: m.date };
     });
 
-    html += '</div></div>';
-  });
+    let issues = [];
+    let ok = 0;
+    state.matches.forEach(m => {
+      const key = m.home + '|' + m.away;
+      const src = sourceMap[key];
+      if (!src) return;
+      const savedDate  = new Date(m.datetime);
+      const sourceDate = new Date(src.utcISO);
+      const diffMin = Math.abs((savedDate.getTime() - sourceDate.getTime()) / 60000);
+      if (diffMin > 1) {
+        const toGT = dt => {
+          const d = new Date(new Date(dt).getTime() - 6*60*60*1000);
+          return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes());
+        };
+        issues.push({
+          match: m,
+          savedGT:   toGT(m.datetime),
+          correctGT: toGT(src.utcISO),
+          correctUTC: src.utcISO,
+          diffMin
+        });
+      } else {
+        ok++;
+      }
+    });
 
-  container.innerHTML = html;
+    if (issues.length === 0) {
+      out.innerHTML = '<div style="color:var(--success-text);background:var(--success-bg);border-radius:var(--radius);padding:10px 14px;font-size:13px">'
+        + '<i class="ti ti-circle-check"></i> ¡Todos los horarios están correctos! (' + ok + ' partidos verificados)</div>';
+    } else {
+      let html = '<div style="font-size:13px;margin-bottom:10px;color:var(--danger-text)">'
+        + '<i class="ti ti-alert-triangle"></i> ' + issues.length + ' partido(s) con horario incorrecto:</div>';
+      issues.forEach(issue => {
+        html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;background:var(--bg-secondary);border-radius:var(--radius);margin-bottom:6px;font-size:13px">'
+          + '<span style="font-weight:600;flex:1;min-width:140px">' + issue.match.home + ' vs ' + issue.match.away + '</span>'
+          + '<span style="color:var(--danger-text)">Guardado: ' + issue.savedGT + ' GT</span>'
+          + '<span style="color:var(--text-secondary)">→</span>'
+          + '<span style="color:var(--success-text)">Correcto: ' + issue.correctGT + ' GT</span>'
+          + '<button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 8px" '
+          + 'onclick="fixOneSchedule(\'' + issue.match.id + '\',\'' + issue.correctUTC + '\',this)">'
+          + '<i class="ti ti-check"></i> Corregir</button>'
+          + '</div>';
+      });
+      out.innerHTML = html;
+    }
+  } catch(e) {
+    out.innerHTML = '<div style="color:var(--danger-text);font-size:13px"><i class="ti ti-alert-circle"></i> Error: ' + e.message + '</div>';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Verificar horarios';
+}
+
+async function fixOneSchedule(matchId, correctUTC, btn) {
+  const m = state.matches.find(x => x.id === matchId);
+  if (!m) return;
+  m.datetime = correctUTC;
+  btn.disabled = true;
+  btn.textContent = '✓ Corregido';
+  btn.style.background = 'var(--success-bg)';
+  btn.style.color = 'var(--success-text)';
+  await saveState();
+  renderMatches();
+}
+
+// ─── Corrección masiva de horarios ───────────────────────────────────────────
+function openFixTimesModal() {
+  const fromHour = document.getElementById('fix-from-hour').value.padStart(2,'0') + ':00';
+  const toHour   = document.getElementById('fix-to-hour').value.padStart(2,'0')   + ':00';
+  const affected = state.matches.filter(m => m.datetime && m.datetime.includes('T' + fromHour + ':'));
+  document.getElementById('fix-times-preview').textContent =
+    affected.length > 0
+      ? `Se cambiarán ${affected.length} partido(s) de ${fromHour} → ${toHour}`
+      : `No hay partidos con hora ${fromHour}`;
+  document.getElementById('modal-fixtimes-overlay').classList.remove('hidden');
+}
+function closeFixTimesModal() {
+  document.getElementById('modal-fixtimes-overlay').classList.add('hidden');
+}
+async function confirmFixTimes() {
+  const fromHour = document.getElementById('fix-from-hour').value.padStart(2,'0') + ':00';
+  const toHour   = document.getElementById('fix-to-hour').value.padStart(2,'0')   + ':00';
+  let changed = 0;
+  state.matches.forEach(m => {
+    if (m.datetime && m.datetime.includes('T' + fromHour + ':')) {
+      m.datetime = m.datetime.replace('T' + fromHour + ':', 'T' + toHour + ':');
+      changed++;
+    }
+  });
+  closeFixTimesModal();
+  await saveState();
+  showToast(`✅ ${changed} partido(s) corregidos`);
+  renderMatches();
+  renderAdminMatches();
 }
 
 // ─── Borrar todos los partidos ───────────────────────────────────────────────
@@ -1189,7 +1605,6 @@ async function saveNewPin() {
 }
 
 // ─── Boot ────────────────────────────────────────────────────────────────────
-// Cargar configuración de API en el formulario al iniciar
 loadApiConfigForm();
 updateApiConfigStatus();
 
@@ -1197,6 +1612,6 @@ initFirebase().catch(err => {
   console.error('Firebase error:', err);
   document.body.innerHTML = `<div style="padding:2rem;font-family:sans-serif;color:#a32d2d">
     <h2>Error de configuración</h2>
-    <p>Asegúrate de haber reemplazado los valores de Firebase en <code>app.js</code>. Ver <code>README.md</code>.</p>
+    <p>Asegúrate de haber reemplazado los valores de Firebase en <code>app.js</code>.</p>
   </div>`;
 });

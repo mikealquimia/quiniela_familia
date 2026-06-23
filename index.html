@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quinuela Mundialista Familia</title>
+  <title>Quiniela Familia 2026</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -17,8 +17,8 @@
   <div id="screen-login">
     <div class="login-hero">
       <div class="trophy-icon">🏆</div>
-      <h1>Quinuela Mundialista Familia</h1>
-      <p>Selecciona tu nombre e ingresa tu PIN</p>
+      <h1>Quiniela Familia 2026</h1>
+      <p>¡Que gane el mejor!</p>
     </div>
     <div class="login-card">
       <div class="form-group">
@@ -28,7 +28,7 @@
         </select>
       </div>
       <div class="form-group">
-        <label>PIN (4 dígitos)</label>
+        <label>Tu PIN</label>
         <div class="pin-container">
           <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-0" oninput="pinNext(this,1)" onkeydown="pinBack(event,this,null)">
           <input type="password" inputmode="numeric" maxlength="1" class="pin-box" id="pin-1" oninput="pinNext(this,2)" onkeydown="pinBack(event,this,0)">
@@ -49,7 +49,7 @@
     <header class="app-header">
       <div class="header-left">
         <span class="header-logo">🏆</span>
-        <span class="header-title">Quinuela Mundialista Familia</span>
+        <span class="header-title">Quiniela Familia 2026</span>
       </div>
       <div class="header-right">
         <div id="user-avatar" class="avatar"></div>
@@ -71,11 +71,11 @@
       <button class="tab" onclick="showTab('tab-tabla',this)">
         <i class="ti ti-trophy"></i> Tabla
       </button>
-      <button class="tab" onclick="showTab('tab-stats',this)">
-        <i class="ti ti-chart-bar"></i> Estadísticas
-      </button>
       <button class="tab" onclick="showTab('tab-comparar',this)">
         <i class="ti ti-eye"></i> Comparar
+      </button>
+      <button class="tab" onclick="showTab('tab-stats',this)">
+        <i class="ti ti-chart-bar"></i> Estadísticas
       </button>
       <button class="tab hidden" id="tab-admin-btn" onclick="showTab('tab-admin',this)">
         <i class="ti ti-settings"></i> Admin
@@ -84,16 +84,35 @@
 
     <!-- QUINIELA TAB -->
     <div id="tab-quiniela" class="tab-content">
+      <!-- Mini stats personales -->
+      <div id="my-stats-grid" class="stat-grid" style="margin-bottom:1rem"></div>
+
       <div id="quiniela-info" class="alert alert-info">
         <i class="ti ti-info-circle"></i> Puedes editar tu quiniela hasta 1 hora antes de cada partido.
       </div>
+
+      <!-- Navegación por día -->
+      <div class="card" style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;padding:10px 12px">
+        <button class="btn btn-sm btn-icon" onclick="stepDay(-1)" title="Día anterior"><i class="ti ti-chevron-left"></i></button>
+        <select id="date-filter" onchange="renderMatches()" style="flex:1;text-align:center;font-weight:500">
+          <option value="all">Todos los partidos</option>
+        </select>
+        <button class="btn btn-sm btn-icon" onclick="stepDay(1)" title="Día siguiente"><i class="ti ti-chevron-right"></i></button>
+      </div>
+
       <div id="matches-list"></div>
     </div>
 
     <!-- TABLA TAB -->
     <div id="tab-tabla" class="tab-content hidden">
+      <div id="tabla-rank" style="margin-bottom:1rem"></div>
       <div class="stat-grid" id="tabla-stats"></div>
-      <div class="card">
+    </div>
+
+    <!-- STATS TAB -->
+    <div id="tab-stats" class="tab-content hidden">
+      <div id="stats-highlights" class="stat-grid" style="margin-bottom:1rem"></div>
+      <div class="card" style="margin-bottom:1rem">
         <div class="section-title">Tabla de posiciones</div>
         <div class="table-wrapper">
           <table>
@@ -103,7 +122,7 @@
                 <th>Jugador</th>
                 <th class="text-right">Pts</th>
                 <th class="text-right">Exactos</th>
-                <th class="text-right">Resultados</th>
+                <th class="text-right">Resultado</th>
                 <th class="text-right">Jugados</th>
               </tr>
             </thead>
@@ -111,23 +130,15 @@
           </table>
         </div>
       </div>
-    </div>
-
-    <!-- STATS TAB -->
-    <div id="tab-stats" class="tab-content hidden">
       <div class="card" style="margin-bottom:1rem">
-        <div class="section-title">Quinielas comparadas</div>
-        <div id="all-picks-container"></div>
-      </div>
-      <div class="card">
-        <div class="section-title">Rendimiento por participante</div>
+        <div class="section-title">Precisión por participante</div>
         <div class="table-wrapper">
           <table>
             <thead>
               <tr>
                 <th>Jugador</th>
                 <th class="text-right">% Exactos</th>
-                <th class="text-right">% Resultado</th>
+                <th class="text-right">% Aciertos</th>
                 <th class="text-right">Racha</th>
               </tr>
             </thead>
@@ -135,20 +146,20 @@
           </table>
         </div>
       </div>
+      <div class="card">
+        <div class="section-title">Todos los pronósticos</div>
+        <div id="all-picks-container"></div>
+      </div>
     </div>
 
     <!-- COMPARAR TAB -->
     <div id="tab-comparar" class="tab-content hidden">
-      <div class="card" style="margin-bottom:1rem">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <div class="section-title" style="margin:0"><i class="ti ti-eye"></i> Quinielas por partido</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
-            <button class="btn btn-sm comparar-filter-btn" onclick="filterComparar('all',this)">Todos</button>
-            <button class="btn btn-sm comparar-filter-btn active" onclick="filterComparar('today',this)">Hoy</button>
-            <button class="btn btn-sm comparar-filter-btn" onclick="filterComparar('pending',this)">Por jugar</button>
-            <button class="btn btn-sm comparar-filter-btn" onclick="filterComparar('done',this)">Finalizados</button>
-          </div>
-        </div>
+      <div class="card" style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;padding:10px 12px">
+        <button class="btn btn-sm btn-icon" onclick="stepCmpDay(-1)" title="Día anterior"><i class="ti ti-chevron-left"></i></button>
+        <select id="cmp-date-filter" onchange="renderComparar()" style="flex:1;text-align:center;font-weight:500">
+          <option value="all">Todos los partidos</option>
+        </select>
+        <button class="btn btn-sm btn-icon" onclick="stepCmpDay(1)" title="Día siguiente"><i class="ti ti-chevron-right"></i></button>
       </div>
       <div id="comparar-list"></div>
     </div>
@@ -156,59 +167,7 @@
     <!-- ADMIN TAB -->
     <div id="tab-admin" class="tab-content hidden">
 
-      <!-- ⚙️ PANEL DE CONFIGURACIÓN API -->
-      <details id="api-config-panel" style="margin-bottom:1rem;">
-        <summary style="cursor:pointer;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-weight:600;font-size:14px;list-style:none;display:flex;align-items:center;gap:8px;">
-          <i class="ti ti-settings-2" style="color:var(--accent)"></i>
-          <span>⚙️ Configuración de API-Football</span>
-          <span id="api-config-status" style="margin-left:auto;font-size:12px;font-weight:400;color:var(--text-secondary)">cargando...</span>
-        </summary>
-        <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:16px;background:var(--surface-alt,var(--surface));display:flex;flex-direction:column;gap:14px;">
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div class="form-group" style="margin:0">
-              <label style="font-size:12px;font-weight:600;color:var(--text-secondary)">🔑 API Key (API-Football)</label>
-              <div style="display:flex;gap:6px">
-                <input type="password" id="cfg-apikey" placeholder="pega tu key aquí" style="font-family:monospace;font-size:13px;flex:1">
-                <button onclick="toggleApiKeyVisibility()" title="Mostrar/ocultar" style="padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;font-size:16px" id="cfg-apikey-eye">👁</button>
-              </div>
-              <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Gratis en <a href="https://dashboard.api-football.com/register" target="_blank">dashboard.api-football.com</a></div>
-            </div>
-
-            <div class="form-group" style="margin:0">
-              <label style="font-size:12px;font-weight:600;color:var(--text-secondary)">🏆 League ID (número)</label>
-              <input type="number" id="cfg-leagueid" placeholder="vacío = auto-detectar" style="font-size:13px">
-              <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">Mundial FIFA = 1 · Deja vacío para buscar por nombre</div>
-            </div>
-
-            <div class="form-group" style="margin:0">
-              <label style="font-size:12px;font-weight:600;color:var(--text-secondary)">📅 Temporada</label>
-              <input type="number" id="cfg-season" placeholder="ej. 2026" style="font-size:13px">
-            </div>
-
-            <div class="form-group" style="margin:0">
-              <label style="font-size:12px;font-weight:600;color:var(--text-secondary)">🔎 Nombre de liga en búsqueda</label>
-              <input type="text" id="cfg-leaguename" placeholder="ej. FIFA World Cup" style="font-size:13px">
-            </div>
-          </div>
-
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <button class="btn btn-primary btn-sm" onclick="saveApiConfig()">
-              <i class="ti ti-device-floppy"></i> Guardar configuración
-            </button>
-            <button class="btn btn-sm" onclick="testApiConfig()" id="btn-test-api" style="background:var(--accent-bg);border-color:var(--accent);color:var(--accent-text)">
-              <i class="ti ti-plug"></i> Probar conexión
-            </button>
-            <button class="btn btn-sm" onclick="resetApiConfig()" style="font-size:12px;color:var(--text-secondary)">
-              Restaurar defaults
-            </button>
-          </div>
-
-          <div id="api-test-result" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px;line-height:1.6;font-family:monospace;white-space:pre-wrap;background:#f8f8f8;border:1px solid var(--border)"></div>
-        </div>
-      </details>
-
-      <!-- API Sync Panel -->
+      <!-- Sync Panel -->
       <div class="card" style="margin-bottom:1rem;background:var(--accent-bg);border-color:var(--accent)">
         <div class="section-title" style="color:var(--accent-text)"><i class="ti ti-world-download"></i> Sincronización automática</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -221,6 +180,62 @@
           <span style="font-size:11px;color:var(--accent-text)">Partidos: openfootball (gratis) · Resultados: API-Football (requiere key gratuita)</span>
         </div>
       </div>
+
+      <!-- Verificar horarios -->
+      <div class="card" style="margin-bottom:1rem">
+        <div class="section-title"><i class="ti ti-clock-check"></i> Verificar horarios</div>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
+          Compara los horarios guardados contra openfootball y detecta posibles errores de zona horaria.
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+          <button class="btn btn-sm" id="btn-verify-schedule" onclick="verifySchedule()">
+            <i class="ti ti-search"></i> Verificar horarios
+          </button>
+          <button class="btn btn-sm" onclick="openFixTimesModal()">
+            <i class="ti ti-clock-edit"></i> Corrección masiva de horas
+          </button>
+        </div>
+        <div id="verify-schedule-output"></div>
+      </div>
+
+      <!-- API Config -->
+      <details id="api-config-panel" class="card" style="margin-bottom:1rem">
+        <summary style="cursor:pointer;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px">
+          <i class="ti ti-settings"></i> Configuración de API-Football
+          <span id="api-config-status" style="margin-left:auto;font-size:12px"></span>
+        </summary>
+        <div style="margin-top:1rem">
+          <div class="form-row">
+            <div class="form-group">
+              <label>API Key</label>
+              <div style="display:flex;gap:6px">
+                <input type="password" id="cfg-apikey" placeholder="Pega tu API key aquí">
+                <button class="btn btn-sm btn-icon" id="cfg-apikey-eye" onclick="toggleApiKeyVisibility()">👁</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>League ID (opcional)</label>
+              <input type="text" id="cfg-leagueid" placeholder="ej. 1">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Temporada</label>
+              <input type="text" id="cfg-season" placeholder="2026">
+            </div>
+            <div class="form-group">
+              <label>Nombre de liga</label>
+              <input type="text" id="cfg-leaguename" placeholder="FIFA World Cup">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="saveApiConfig()"><i class="ti ti-check"></i> Guardar</button>
+            <button class="btn btn-sm" onclick="resetApiConfig()"><i class="ti ti-refresh"></i> Restaurar</button>
+            <button class="btn btn-sm" id="btn-test-api" onclick="testApiConfig()"><i class="ti ti-plug"></i> Probar conexión</button>
+          </div>
+          <pre id="api-test-result" style="display:none;margin-top:10px;padding:10px;background:var(--bg-secondary);border-radius:var(--radius);font-size:12px;white-space:pre-wrap;word-break:break-all"></pre>
+        </div>
+      </details>
 
       <div class="admin-grid">
         <div class="card">
@@ -245,12 +260,12 @@
           <div class="section-title"><i class="ti ti-adjustments"></i> Sistema de puntos</div>
           <div class="form-row">
             <div class="form-group">
-              <label>Pts resultado correcto</label>
-              <input type="number" id="pts-result" value="1" min="0">
-            </div>
-            <div class="form-group">
               <label>Pts marcador exacto</label>
               <input type="number" id="pts-exact" value="3" min="0">
+            </div>
+            <div class="form-group">
+              <label>Pts acertar resultado</label>
+              <input type="number" id="pts-result" value="1" min="0">
             </div>
           </div>
           <button class="btn btn-sm" onclick="savePoints()">
@@ -283,6 +298,7 @@
               <option>Octavos de final</option>
               <option>Cuartos de final</option>
               <option>Semifinal</option>
+              <option>Tercer lugar</option>
               <option>Final</option>
             </select>
           </div>
@@ -293,11 +309,16 @@
       </div>
 
       <div class="card" style="margin-bottom:1rem">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px">
           <div class="section-title" style="margin:0"><i class="ti ti-list-check"></i> Partidos y resultados</div>
-          <button class="btn btn-sm btn-danger" onclick="openDeleteAllModal()">
-            <i class="ti ti-trash"></i> Borrar todos
-          </button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="admin-date-filter" onchange="renderAdminMatches()" style="font-size:12px;padding:5px 8px">
+              <option value="all">Todas las fechas</option>
+            </select>
+            <button class="btn btn-sm btn-danger" onclick="openDeleteAllModal()">
+              <i class="ti ti-trash"></i> Borrar todos
+            </button>
+          </div>
         </div>
         <div id="admin-matches-list"></div>
       </div>
@@ -309,8 +330,8 @@
             <thead>
               <tr>
                 <th>Nombre</th>
-                <th>PIN</th>
                 <th>Rol</th>
+                <th>PIN</th>
                 <th>Quiniela</th>
                 <th></th>
               </tr>
@@ -378,17 +399,46 @@
     </div>
   </div>
 
-  <!-- MODAL BORRAR TODOS LOS PARTIDOS -->
+  <!-- MODAL BORRAR TODOS -->
   <div id="modal-deleteall-overlay" class="modal-overlay hidden" onclick="closeDeleteAllModal()">
     <div class="modal-box" style="max-width:380px" onclick="event.stopPropagation()">
       <div class="modal-header">
         <span class="section-title" style="margin:0;color:var(--danger-text)"><i class="ti ti-alert-triangle"></i> ¿Borrar todos los partidos?</span>
       </div>
-      <p style="font-size:14px;margin-bottom:6px">Esta acción eliminará <strong>todos los partidos</strong> y sus resultados. Las quinielas de los participantes también se borrarán.</p>
+      <p style="font-size:14px;margin-bottom:6px">Esta acción eliminará <strong>todos los partidos</strong> y sus resultados.</p>
       <p style="font-size:12px;color:var(--text-secondary);margin-bottom:1rem">Esta acción no se puede deshacer.</p>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-sm" onclick="closeDeleteAllModal()">Cancelar</button>
         <button class="btn btn-sm btn-danger" onclick="confirmDeleteAll()"><i class="ti ti-trash"></i> Sí, borrar todo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CORRECCIÓN MASIVA DE HORAS -->
+  <div id="modal-fixtimes-overlay" class="modal-overlay hidden" onclick="closeFixTimesModal()">
+    <div class="modal-box" style="max-width:400px" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="section-title" style="margin:0"><i class="ti ti-clock-edit"></i> Corrección masiva de horas</span>
+        <button class="btn btn-sm btn-icon" onclick="closeFixTimesModal()"><i class="ti ti-x"></i></button>
+      </div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem">
+        Cambia la hora UTC de todos los partidos que tengan un horario específico.
+        Útil para corregir errores de zona horaria en importaciones.
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Hora actual (UTC, 0-23)</label>
+          <input type="number" id="fix-from-hour" min="0" max="23" placeholder="ej. 19" oninput="openFixTimesModal()">
+        </div>
+        <div class="form-group">
+          <label>Cambiar a (UTC, 0-23)</label>
+          <input type="number" id="fix-to-hour" min="0" max="23" placeholder="ej. 25" oninput="openFixTimesModal()">
+        </div>
+      </div>
+      <p id="fix-times-preview" style="font-size:13px;color:var(--accent-text);background:var(--accent-bg);border-radius:var(--radius);padding:8px 12px;margin-bottom:1rem"></p>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-sm" onclick="closeFixTimesModal()">Cancelar</button>
+        <button class="btn btn-sm btn-primary" onclick="confirmFixTimes()"><i class="ti ti-check"></i> Aplicar corrección</button>
       </div>
     </div>
   </div>
