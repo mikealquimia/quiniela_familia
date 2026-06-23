@@ -1256,11 +1256,13 @@ async function importFixtures() {
 
       const round = (m.round || 'Fase de grupos').toLowerCase();
       let phase = 'Fase de grupos';
-      if (round.includes('final') && round.includes('cuarto')) phase = 'Cuartos de final';
-      else if (round.includes('octavo') || round.includes('round of 16')) phase = 'Octavos de final';
-      else if (round.includes('semifinal') || round.includes('semi')) phase = 'Semifinal';
-      else if (round.includes('third') || round.includes('tercer')) phase = 'Tercer lugar';
-      else if (round.includes('final')) phase = 'Final';
+      // Orden importa: verificar fases más específicas primero
+      if (round.includes('third') || round.includes('tercer')) phase = 'Tercer lugar';
+      else if (round.includes('quarter') || (round.includes('cuarto') && round.includes('final'))) phase = 'Cuartos de final';
+      else if (round.includes('semi')) phase = 'Semifinal';
+      else if (round.includes('round of 32') || round.includes('treintaidosavo')) phase = 'Dieciseisavos de final';
+      else if (round.includes('round of 16') || round.includes('octavo')) phase = 'Octavos de final';
+      else if (round === 'final') phase = 'Final';
       else if (m.group) phase = 'Fase de grupos - ' + m.group;
 
       let result = { home: '', away: '' };
