@@ -1226,7 +1226,9 @@ async function importFixtures() {
     const data = await res.json();
 
     let added = 0;
-    const existingKeys = new Set(state.matches.map(m => m.home + '|' + m.away));
+    let updated = 0;
+    // Mapa de clave → índice para poder actualizar partidos existentes
+    const existingMap = new Map(state.matches.map((m, i) => [m.home + '|' + m.away, i]));
 
     const matches = data.matches || [];
     const pad = n => String(n).padStart(2, '0');
@@ -1234,7 +1236,6 @@ async function importFixtures() {
       const home = m.team1;
       const away = m.team2;
       if (!home || !away) return;
-      if (existingKeys.has(home + '|' + away)) return;
 
       // Parse datetime - time comes as "13:00 UTC-6", convert to UTC ISO.
       // Parseo robusto: lee el offset real del JSON (puede ser UTC-4 en horario de verano de otras zonas)
@@ -1267,16 +1268,27 @@ async function importFixtures() {
         result = { home: String(m.score.ft[0]), away: String(m.score.ft[1]) };
       }
 
-      state.matches.push({
-        id: 'm' + Date.now() + Math.random().toString(36).slice(2,6),
-        home, away, datetime, phase, result
-      });
-      existingKeys.add(home + '|' + away);
-      added++;
+      const key = home + '|' + away;
+      if (existingMap.has(key)) {
+        // Partido existente: actualizar fecha, fase y resultado (sin tocar el id)
+        const idx = existingMap.get(key);
+        state.matches[idx].datetime = datetime;
+        state.matches[idx].phase = phase;
+        state.matches[idx].result = result;
+        updated++;
+      } else {
+        // Partido nuevo: agregar
+        state.matches.push({
+          id: 'm' + Date.now() + Math.random().toString(36).slice(2,6),
+          home, away, datetime, phase, result
+        });
+        existingMap.set(key, state.matches.length - 1);
+        added++;
+      }
     });
 
     await saveState();
-    btn.textContent = '✓ Importados ' + added + ' partidos';
+    btn.textContent = `✓ ${added} nuevo(s), ${updated} actualizado(s)`;
     renderAdminMatches();
     renderMatches();
     setTimeout(() => { btn.textContent = 'Importar partidos del Mundial'; btn.disabled = false; }, 3000);
