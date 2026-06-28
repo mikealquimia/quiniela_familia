@@ -393,19 +393,21 @@ function refreshAll() {
   renderComparar();
   renderAdminMatches();
   renderAdminUsers();
+  renderBracket();
   document.getElementById('pts-result').value = state.points.result;
   document.getElementById('pts-exact').value   = state.points.exact;
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 function showTab(id, btn) {
-  ['tab-quiniela','tab-tabla','tab-stats','tab-comparar','tab-admin'].forEach(t => {
+  ['tab-quiniela','tab-tabla','tab-stats','tab-comparar','tab-admin','tab-bracket'].forEach(t => {
     document.getElementById(t).classList.add('hidden');
   });
   document.getElementById(id).classList.remove('hidden');
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   if (btn) btn.classList.add('active');
   if (id === 'tab-comparar') renderComparar();
+  if (id === 'tab-bracket')  renderBracket();
 }
 
 // ─── Pick helpers ─────────────────────────────────────────────────────────────
@@ -1109,7 +1111,11 @@ function openEditModal(matchId) {
   _editMatchId = matchId;
   document.getElementById('edit-home').value  = m.home;
   document.getElementById('edit-away').value  = m.away;
-  document.getElementById('edit-date').value  = m.datetime;
+  // Show datetime in Guatemala local time for the input
+  const _ed = new Date(m.datetime.endsWith('Z') ? m.datetime : m.datetime + 'Z');
+  const _gtOff = -6 * 60, _brOff = _ed.getTimezoneOffset();
+  const _edLocal = new Date(_ed.getTime() + (_gtOff - (-_brOff)) * 60000);
+  document.getElementById('edit-date').value = _edLocal.toISOString().slice(0,16);
   document.getElementById('edit-phase').value = m.phase;
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
@@ -1123,7 +1129,13 @@ async function saveEdit() {
   if (!m) return;
   m.home     = document.getElementById('edit-home').value.trim()  || m.home;
   m.away     = document.getElementById('edit-away').value.trim()  || m.away;
-  m.datetime = document.getElementById('edit-date').value         || m.datetime;
+  const _editVal = document.getElementById('edit-date').value;
+  if (_editVal) {
+    const _gt = new Date(_editVal);
+    const _bOff = _gt.getTimezoneOffset();
+    const _utc = new Date(_gt.getTime() + (_bOff - 6*60) * 60000);
+    m.datetime = _utc.toISOString().replace('.000Z','Z').slice(0,19) + 'Z';
+  }
   m.phase    = document.getElementById('edit-phase').value        || m.phase;
   closeModal();
   await saveState();
@@ -1134,7 +1146,13 @@ async function saveEdit() {
 async function addMatch() {
   const home = document.getElementById('m-home').value.trim();
   const away = document.getElementById('m-away').value.trim();
-  const datetime = document.getElementById('m-date').value;
+  const _rawDate = document.getElementById('m-date').value;
+  let datetime = _rawDate;
+  if (_rawDate) {
+    const _d = new Date(_rawDate);
+    const _utc2 = new Date(_d.getTime() + (_d.getTimezoneOffset() - 6*60) * 60000);
+    datetime = _utc2.toISOString().replace('.000Z','Z').slice(0,19) + 'Z';
+  }
   const phase = document.getElementById('m-phase').value;
   if (!home || !away || !datetime) { alert('Completa todos los campos del partido'); return; }
   state.matches.push({ id: 'm' + Date.now(), home, away, datetime, phase, result: { home: '', away: '' } });
@@ -1215,195 +1233,128 @@ function resetEditAs(e) {
   renderMatches();
 }
 
-// ─── Importar partidos (openfootball, con parseo robusto de timezone) ─────────
-async function importFixtures() {
-  const btn = document.getElementById('btn-import');
-  btn.textContent = 'Importando...';
-  btn.disabled = true;
+// ─── Sincronización completa desde openfootball ──────────────────────────────
+async function syncAll() {
+  const btn = document.getElementById('btn-sync-all');
+  const steps = ['Conectando...','Importando partidos...','Corrigiendo horarios y fases...','Limpiando duplicados...','Guardando...'];
+  let si = 0;
+  const tick = () => { if (btn) btn.textContent = steps[Math.min(si++, steps.length-1)]; };
+  tick(); if (btn) btn.disabled = true;
+
   try {
+    tick();
     const res = await fetch('https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json');
-    if (!res.ok) throw new Error('No se pudo conectar');
+    if (!res.ok) throw new Error('No se pudo conectar con openfootball');
     const data = await res.json();
+    const ofMatches = data.matches || [];
 
-    let added = 0;
-    let updated = 0;
-    // Mapa de clave → índice para poder actualizar partidos existentes
-    const existingMap = new Map(state.matches.map((m, i) => [m.home + '|' + m.away, i]));
+    const pad = n => String(n).padStart(2,'0');
 
-    const matches = data.matches || [];
-    const pad = n => String(n).padStart(2, '0');
-    matches.forEach(m => {
-      const home = m.team1;
-      const away = m.team2;
-      if (!home || !away) return;
-
-      // Parse datetime - time comes as "13:00 UTC-6", convert to UTC ISO.
-      // Parseo robusto: lee el offset real del JSON (puede ser UTC-4 en horario de verano de otras zonas)
-      const timeParts = (m.time || '12:00 UTC-6').split(' ');
-      const timeStr = timeParts[0];
-      const tzStr   = timeParts[1] || 'UTC-6';
+    // Convierte "19:00 UTC-6" en fecha "2026-06-29" → ISO UTC correcto usando Date.UTC
+    function toUTC(dateStr, timeAndTz) {
+      const parts = (timeAndTz || '12:00 UTC-6').split(' ');
+      const timeStr = parts[0], tzStr = parts[1] || 'UTC-6';
+      const [h, min] = timeStr.split(':').map(Number);
+      const [yyyy, mm, dd] = dateStr.split('-').map(Number);
       const tzMatch = tzStr.match(/UTC([+-]\d+)/);
       const tzOffset = tzMatch ? parseInt(tzMatch[1]) : -6;
-      const [th, tm] = timeStr.split(':').map(Number);
-      const [dy, dmo, dd] = m.date.split('-').map(Number);
-      const utcMs = Date.UTC(dy, dmo - 1, dd, th, tm, 0) - tzOffset * 60 * 60 * 1000;
-      const utcDate = new Date(utcMs);
-      const datetime = utcDate.getUTCFullYear() + '-'
-        + pad(utcDate.getUTCMonth()+1) + '-'
-        + pad(utcDate.getUTCDate()) + 'T'
-        + pad(utcDate.getUTCHours()) + ':'
-        + pad(utcDate.getUTCMinutes()) + ':00Z';
+      const utcMs = Date.UTC(yyyy, mm - 1, dd, h, min, 0) - tzOffset * 3600000;
+      const u = new Date(utcMs);
+      return u.getUTCFullYear() + '-' + pad(u.getUTCMonth()+1) + '-' + pad(u.getUTCDate())
+        + 'T' + pad(u.getUTCHours()) + ':' + pad(u.getUTCMinutes()) + ':00Z';
+    }
 
-      const round = (m.round || 'Fase de grupos').toLowerCase();
-      let phase = 'Fase de grupos';
-      // Orden importa: verificar fases más específicas primero
-      if (round.includes('third') || round.includes('tercer')) phase = 'Tercer lugar';
-      else if (round.includes('quarter') || (round.includes('cuarto') && round.includes('final'))) phase = 'Cuartos de final';
-      else if (round.includes('semi')) phase = 'Semifinal';
-      else if (round.includes('round of 32') || round.includes('treintaidosavo')) phase = 'Dieciseisavos de final';
-      else if (round.includes('round of 16') || round.includes('octavo')) phase = 'Octavos de final';
-      else if (round === 'final') phase = 'Final';
-      else if (m.group) phase = 'Fase de grupos - ' + m.group;
+    function roundToPhase(round, group) {
+      const r = (round || '').toLowerCase();
+      if (r.includes('third') || r.includes('tercer'))  return 'Tercer lugar';
+      if (r.includes('quarter'))                         return 'Cuartos de final';
+      if (r.includes('semi'))                            return 'Semifinal';
+      if (r.includes('round of 32'))                     return 'Dieciseisavos de final';
+      if (r.includes('round of 16'))                     return 'Octavos de final';
+      if (r === 'final')                                 return 'Final';
+      if (group)                                         return 'Fase de grupos - ' + group;
+      return 'Fase de grupos';
+    }
 
-      let result = { home: '', away: '' };
-      if (m.score && m.score.ft) {
-        result = { home: String(m.score.ft[0]), away: String(m.score.ft[1]) };
-      }
+    function isPlaceholder(name) {
+      if (!name) return true;
+      if (/^[WL]\d+$/.test(name)) return true;
+      if (/^\d+[A-Z](\/[A-Z])*$/.test(name)) return true;
+      if (/^\d[A-Z](\/[A-Z\/]+)?$/.test(name)) return true;
+      return false;
+    }
 
-      const key = home + '|' + away;
-      if (existingMap.has(key)) {
-        // Partido existente: actualizar fecha, fase y resultado (sin tocar el id)
-        const idx = existingMap.get(key);
-        state.matches[idx].datetime = datetime;
-        state.matches[idx].phase = phase;
-        state.matches[idx].result = result;
-        updated++;
+    // PASO 1: Importar nuevos y corregir existentes
+    tick();
+    let added = 0, timeFixed = 0, phaseFixed = 0, resultsFixed = 0;
+
+    ofMatches.forEach(of => {
+      const home = of.team1, away = of.team2;
+      if (!home || !away || isPlaceholder(home) || isPlaceholder(away)) return;
+
+      const datetime = toUTC(of.date, of.time);
+      const phase    = roundToPhase(of.round, of.group);
+      const result   = of.score?.ft
+        ? { home: String(of.score.ft[0]), away: String(of.score.ft[1]) }
+        : null;
+      const goals1 = (of.goals1 || []).map(g => ({ name: g.name, minute: g.minute }));
+      const goals2 = (of.goals2 || []).map(g => ({ name: g.name, minute: g.minute }));
+
+      const existing = state.matches.find(m => m.home === home && m.away === away);
+
+      if (existing) {
+        if (existing.datetime !== datetime) { existing.datetime = datetime; timeFixed++; }
+        if (existing.phase !== phase)       { existing.phase = phase;       phaseFixed++; }
+        if (result && (existing.result?.home !== result.home || existing.result?.away !== result.away)) {
+          existing.result = result; resultsFixed++;
+        }
+        if (result) { existing.goals1 = goals1; existing.goals2 = goals2; }
       } else {
-        // Partido nuevo: agregar
         state.matches.push({
           id: 'm' + Date.now() + Math.random().toString(36).slice(2,6),
-          home, away, datetime, phase, result
+          home, away, datetime, phase,
+          result: result || { home: '', away: '' }
         });
-        existingMap.set(key, state.matches.length - 1);
         added++;
       }
     });
 
+    // PASO 2: Eliminar placeholders y duplicados exactos
+    tick();
+    const beforeCount = state.matches.length;
+    state.matches = state.matches.filter(m => !isPlaceholder(m.home) && !isPlaceholder(m.away));
+    const seen = new Set();
+    state.matches = state.matches.filter(m => {
+      const k = m.home + '|' + m.away;
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    });
+    const removed = beforeCount - state.matches.length;
+
+    // PASO 3: Guardar y refrescar
+    tick();
     await saveState();
-    btn.textContent = `✓ ${added} nuevo(s), ${updated} actualizado(s)`;
-    renderAdminMatches();
-    renderMatches();
-    setTimeout(() => { btn.textContent = 'Importar partidos del Mundial'; btn.disabled = false; }, 3000);
+    renderAdminMatches(); renderTabla(); renderStats(); renderMatches(); renderBracket();
+
+    const parts = [];
+    if (added > 0)        parts.push(added + ' nuevos');
+    if (timeFixed > 0)    parts.push(timeFixed + ' horarios corregidos');
+    if (phaseFixed > 0)   parts.push(phaseFixed + ' fases corregidas');
+    if (resultsFixed > 0) parts.push(resultsFixed + ' resultados actualizados');
+    if (removed > 0)      parts.push(removed + ' eliminados');
+
+    if (btn) {
+      btn.textContent = parts.length ? '✓ ' + parts.join(' · ') : '✓ Todo al día';
+      setTimeout(() => { btn.textContent = '🔄 Sincronizar'; btn.disabled = false; }, 4000);
+    }
   } catch(e) {
-    btn.textContent = 'Error: ' + e.message;
-    btn.disabled = false;
+    if (btn) { btn.textContent = '✗ Error: ' + e.message; btn.disabled = false; }
     console.error(e);
   }
 }
 
-// ─── Actualizar resultados desde API-Football via Vercel ─────────────────────
-async function syncResults() {
-  const cfg = getApiConfig();
-  if (!cfg.apiKey) {
-    alert('Agrega tu API key en el panel ⚙️ Configuración de API-Football.');
-    document.getElementById('api-config-panel').open = true;
-    return;
-  }
-  const btn = document.getElementById('btn-sync');
-  btn.textContent = 'Actualizando...';
-  btn.disabled = true;
-
-  try {
-    let url = '/api/resultados?key=' + encodeURIComponent(cfg.apiKey);
-    if (cfg.leagueId)   url += '&leagueId='   + encodeURIComponent(cfg.leagueId);
-    if (cfg.season)     url += '&season='      + encodeURIComponent(cfg.season);
-    if (cfg.leagueName) url += '&leagueName='  + encodeURIComponent(cfg.leagueName);
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('HTTP ' + r.status + ' — verifica tu API key');
-    const data = await r.json();
-    if (!data.response) throw new Error(data.error || 'Respuesta inválida de API-Football');
-
-    function norm(s) {
-      return (s || '').toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .replace(/\b(de|la|los|las|el|the|republic|united|states|of|ivory|coast|korea|dpr|south|north)\b/g, '')
-        .replace(/[^a-z0-9]/g, '');
-    }
-    const ALIASES = {
-      'cote divoire': 'ivory coast',
-      'ivoire': 'ivory coast',
-      'korea republic': 'south korea',
-      'korea dpr': 'north korea',
-      'usa': 'united states',
-      'ir iran': 'iran',
-      'czechia': 'czech republic',
-      'trinidad tobago': 'trinidad and tobago',
-    };
-    function canonical(s) {
-      const n = norm(s);
-      return ALIASES[n] ? norm(ALIASES[n]) : n;
-    }
-
-    const debugLines = [];
-    let updated = 0;
-    data.response.forEach(fix => {
-      const h = fix.teams.home.name, a = fix.teams.away.name;
-      const sh = String(fix.goals.home ?? ''), sa = String(fix.goals.away ?? '');
-      if (sh === '' || sa === '') return;
-      const nh = canonical(h), na = canonical(a);
-      const match = state.matches.find(m => {
-        const mh = canonical(m.home), ma = canonical(m.away);
-        const overlaps = (x, y) => {
-          const short = x.length < y.length ? x : y;
-          return short.length >= 3 && (x.includes(y.slice(0,4)) || y.includes(x.slice(0,4)));
-        };
-        return overlaps(mh, nh) && overlaps(ma, na);
-      });
-      debugLines.push(`API: "${h}" vs "${a}" (${sh}-${sa}) → ${match ? '✓ ' + match.home + ' vs ' + match.away : '✗ NO MATCH'}`);
-      if (match && (match.result.home !== sh || match.result.away !== sa)) {
-        match.result = { home: sh, away: sa };
-        updated++;
-      }
-    });
-
-    await saveState();
-    renderAdminMatches(); renderTabla(); renderStats(); renderMatches();
-
-    const matched   = debugLines.filter(l => l.includes('✓'));
-    const unmatched = debugLines.filter(l => l.includes('✗'));
-    const diag = data.diag || {};
-    const diagLines = [
-      diag.leagueFound?.length  ? `🏆 Liga encontrada: ${diag.leagueFound.join(', ')}` : '⚠️ Liga NO encontrada en API',
-      `📋 Total partidos en torneo: ${diag.totalFixtures ?? '?'}`,
-      `✅ Partidos finalizados (FT): ${diag.finishedFixtures ?? data.response.length}`,
-      diag.statusesFound?.length ? `📊 Estados encontrados: ${diag.statusesFound.join(', ')}` : '',
-      diag.rateLimit?.remaining != null ? `🔑 Llamadas API restantes hoy: ${diag.rateLimit.remaining}/${diag.rateLimit.limit}` : '',
-    ].filter(Boolean);
-
-    const report = [
-      `<strong>✅ ${updated} resultado(s) guardado(s)</strong>`,
-      `<strong>🔍 ${data.response.length} partidos finalizados recibidos</strong>`,
-      '<br><u>Diagnóstico:</u><br>' + diagLines.join('<br>'),
-      matched.length   ? '<br><u>Emparejados:</u><br>'              + matched.join('<br>')   : '',
-      unmatched.length ? '<br><u>Sin match en tu quiniela:</u><br>' + unmatched.join('<br>') : '',
-    ].filter(Boolean).join('<br>');
-
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center';
-    overlay.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:560px;width:90%;max-height:80vh;overflow-y:auto">
-      <div style="font-size:15px;line-height:1.7">${report}</div>
-      <button onclick="this.closest('div[style]').remove()" style="margin-top:16px;padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Cerrar</button>
-    </div>`;
-    document.body.appendChild(overlay);
-
-    btn.textContent = `✓ ${updated} actualizado(s)`;
-    setTimeout(() => { btn.textContent = 'Actualizar resultados'; btn.disabled = false; }, 3500);
-  } catch(e) {
-    btn.textContent = 'Error: ' + e.message;
-    btn.disabled = false;
-    alert('Error al sincronizar: ' + e.message);
-  }
-}
+// Alias para compatibilidad
+async function importFixtures() { return syncAll(); }
 
 // ─── Verificar horarios contra openfootball ──────────────────────────────────
 async function verifySchedule() {
@@ -1629,3 +1580,249 @@ initFirebase().catch(err => {
     <p>Asegúrate de haber reemplazado los valores de Firebase en <code>app.js</code>.</p>
   </div>`;
 });
+// ─── Bracket Mundial 2026 ────────────────────────────────────────────────────
+const BRACKET_STRUCTURE = {
+  r32: [
+    { home: 'South Africa', away: 'Canada' },   // 0=M73
+    { home: 'Germany',      away: 'Paraguay' },  // 1=M74  ↘ R16[0]
+    { home: 'Netherlands',  away: 'Morocco' },   // 2=M75
+    { home: 'Brazil',       away: 'Japan' },     // 3=M76  ↘ R16[2]
+    { home: 'France',       away: 'Sweden' },    // 4=M77  ↘ R16[0]
+    { home: 'Ivory Coast',  away: 'Norway' },    // 5=M78
+    { home: 'Mexico',       away: 'Ecuador' },   // 6=M79  ↘ R16[3]
+    { home: 'England',      away: 'DR Congo' },  // 7=M80
+    { home: 'USA',          away: 'Bosnia & Herzegovina' }, // 8=M81
+    { home: 'Belgium',      away: 'Senegal' },              // 9=M82
+    { home: 'Portugal',     away: 'Croatia' },              // 10=M83
+    { home: 'Spain',        away: 'Austria' },              // 11=M84
+    { home: 'Switzerland',  away: 'Algeria' },              // 12=M85
+    { home: 'Argentina',    away: 'Cape Verde' },           // 13=M86
+    { home: 'Colombia',     away: 'Ghana' },                // 14=M87
+    { home: 'Australia',    away: 'Egypt' },                // 15=M88
+  ],
+  // R16: W74vsW77, W73vsW75, W76vsW78, W79vsW80, W83vsW84, W81vsW82, W86vsW88, W85vsW87
+  r16Pairs: [
+    [1, 4],   // R16[0]: W74 vs W77
+    [0, 2],   // R16[1]: W73 vs W75
+    [3, 5],   // R16[2]: W76 vs W78
+    [6, 7],   // R16[3]: W79 vs W80
+    [10,11],  // R16[4]: W83 vs W84
+    [8, 9],   // R16[5]: W81 vs W82
+    [13,15],  // R16[6]: W86 vs W88
+    [12,14],  // R16[7]: W85 vs W87
+  ],
+  // QF: W89vsW90=R16[0]vsR16[1], W91vsW92=R16[2]vsR16[3], W93vsW94=R16[4]vsR16[5], W95vsW96=R16[6]vsR16[7]
+  qfPairs:  [[0,1],[2,3],[4,5],[6,7]],
+  // SF: W97vsW98=QF[0]vsQF[1], W99vsW100=QF[2]vsQF[3]
+  sfPairs:  [[0,1],[2,3]],
+};
+
+function getWinnerOf(home, away) {
+  if (!home || !away) return null;
+  const m = state.matches.find(sm =>
+    (sm.home === home && sm.away === away) ||
+    (sm.home === away && sm.away === home)
+  );
+  if (!m) return null;
+  const rh = m.result?.home, ra = m.result?.away;
+  if (rh === '' || rh == null || ra === '' || ra == null) return null;
+  const nh = parseInt(rh), na = parseInt(ra);
+  if (isNaN(nh) || isNaN(na) || nh === na) return null; // draw = wait for pens
+  return nh > na ? m.home : m.away;
+}
+
+function resolveBracket() {
+  const r32 = BRACKET_STRUCTURE.r32;
+  const w32 = r32.map(m => getWinnerOf(m.home, m.away));
+  const w16 = BRACKET_STRUCTURE.r16Pairs.map(([a,b]) => {
+    const ha = w32[a], hb = w32[b];
+    return (ha && hb) ? getWinnerOf(ha, hb) : null;
+  });
+  const wQF = BRACKET_STRUCTURE.qfPairs.map(([a,b]) => {
+    const ha = w16[a], hb = w16[b];
+    return (ha && hb) ? getWinnerOf(ha, hb) : null;
+  });
+  const wSF = BRACKET_STRUCTURE.sfPairs.map(([a,b]) => {
+    const ha = wQF[a], hb = wQF[b];
+    return (ha && hb) ? getWinnerOf(ha, hb) : null;
+  });
+  // SF losers → 3rd place
+  const sfLosers = BRACKET_STRUCTURE.sfPairs.map(([a,b]) => {
+    const ha = wQF[a], hb = wQF[b];
+    if (!ha || !hb) return null;
+    const w = getWinnerOf(ha, hb);
+    return w ? (w === ha ? hb : ha) : null;
+  });
+  const champion = (wSF[0] && wSF[1]) ? getWinnerOf(wSF[0], wSF[1]) : null;
+  return { w32, w16, wQF, wSF, sfLosers, champion };
+}
+
+// ── Flag-only compact bracket ──
+function brFlag(team, isWinner, size) {
+  const c = team ? TEAM_FLAGS[team] : null;
+  // flagcdn.com only supports specific widths: 20, 40, 80, 160, 320...
+  if (c) {
+    return `<img src="https://flagcdn.com/w40/${c}.png" alt="${team}" title="${team}" loading="lazy"
+      class="brf${isWinner ? ' brf-win' : ''}">`;
+  }
+  return `<span class="brf brf-tbd"><i class="ti ti-star-filled"></i></span>`;
+}
+
+function brMatch(homeTeam, awayTeam, winner, isVertical) {
+  const hW = winner && winner === homeTeam;
+  const aW = winner && winner === awayTeam;
+  return `<div class="brm${isVertical ? ' brm-v' : ''}">
+    <div class="brm-team${hW ? ' brm-w' : ''}">${brFlag(homeTeam, hW, 28)}</div>
+    <div class="brm-team${aW ? ' brm-w' : ''}">${brFlag(awayTeam, aW, 28)}</div>
+  </div>`;
+}
+
+function renderBracket() {
+  const el = document.getElementById('tab-bracket');
+  if (!el || el.classList.contains('hidden')) return;
+
+  const { w32, w16, wQF, wSF, sfLosers, champion } = resolveBracket();
+  const r32 = BRACKET_STRUCTURE.r32;
+  const r16p = BRACKET_STRUCTURE.r16Pairs;
+  const qfp  = BRACKET_STRUCTURE.qfPairs;
+  const sfp  = BRACKET_STRUCTURE.sfPairs;
+
+  // Build team pairs for each round
+  const r16t = r16p.map(([a,b]) => ({ home: w32[a], away: w32[b] }));
+  const qft  = qfp.map(([a,b])  => ({ home: w16[a], away: w16[b] }));
+  const sft  = sfp.map(([a,b])  => ({ home: wQF[a], away: wQF[b] }));
+
+  // Left side: indices 0-3 from each round
+  // Layout: 8 r32 → 4 r16 → 2 qf → 1 sf → center
+  function col(items) {
+    return `<div class="brcol">${items.join('')}</div>`;
+  }
+  function spacer() { return '<div class="brspc"></div>'; }
+
+  // Champion flag
+  const champC = champion ? TEAM_FLAGS[champion] : null;
+  const champFlag = champC
+    ? `<img src="https://flagcdn.com/w80/${champC}.png" alt="${champion}" title="${champion}" class="br-champ-flag">`
+    : `<span class="br-champ-tbd"><i class="ti ti-trophy"></i></span>`;
+
+  // 3rd place
+  const tp1 = sfLosers[0], tp2 = sfLosers[1];
+  const tpW = (tp1 && tp2) ? getWinnerOf(tp1, tp2) : null;
+
+  // Build columns — left side (r32 idx 0-7, r16 idx 0-3, qf idx 0-1, sf idx 0)
+  const leftR32 = [
+    brMatch(r32[1].home, r32[1].away, w32[1]),
+    brMatch(r32[4].home, r32[4].away, w32[4]),
+    spacer(),
+    brMatch(r32[0].home, r32[0].away, w32[0]),
+    brMatch(r32[2].home, r32[2].away, w32[2]),
+    spacer(),
+    brMatch(r32[3].home, r32[3].away, w32[3]),
+    brMatch(r32[5].home, r32[5].away, w32[5]),
+    spacer(),
+    brMatch(r32[6].home, r32[6].away, w32[6]),
+    brMatch(r32[7].home, r32[7].away, w32[7]),
+  ];
+  const leftR16 = [
+    brMatch(r16t[0].home, r16t[0].away, w16[0]),
+    spacer(), spacer(),
+    brMatch(r16t[1].home, r16t[1].away, w16[1]),
+    spacer(), spacer(),
+    brMatch(r16t[2].home, r16t[2].away, w16[2]),
+    spacer(), spacer(),
+    brMatch(r16t[3].home, r16t[3].away, w16[3]),
+  ];
+  const leftQF = [
+    spacer(),
+    brMatch(qft[0].home, qft[0].away, wQF[0]),
+    spacer(), spacer(), spacer(),
+    brMatch(qft[1].home, qft[1].away, wQF[1]),
+    spacer(),
+  ];
+  const leftSF = [
+    spacer(), spacer(),
+    brMatch(sft[0].home, sft[0].away, wSF[0]),
+    spacer(), spacer(),
+  ];
+
+  // Right side (mirrored)
+  const rightR32 = [
+    brMatch(r32[10].home, r32[10].away, w32[10]),
+    brMatch(r32[11].home, r32[11].away, w32[11]),
+    spacer(),
+    brMatch(r32[8].home,  r32[8].away,  w32[8]),
+    brMatch(r32[9].home,  r32[9].away,  w32[9]),
+    spacer(),
+    brMatch(r32[13].home, r32[13].away, w32[13]),
+    brMatch(r32[15].home, r32[15].away, w32[15]),
+    spacer(),
+    brMatch(r32[12].home, r32[12].away, w32[12]),
+    brMatch(r32[14].home, r32[14].away, w32[14]),
+  ];
+  const rightR16 = [
+    brMatch(r16t[4].home, r16t[4].away, w16[4]),
+    spacer(), spacer(),
+    brMatch(r16t[5].home, r16t[5].away, w16[5]),
+    spacer(), spacer(),
+    brMatch(r16t[6].home, r16t[6].away, w16[6]),
+    spacer(), spacer(),
+    brMatch(r16t[7].home, r16t[7].away, w16[7]),
+  ];
+  const rightQF = [
+    spacer(),
+    brMatch(qft[2].home, qft[2].away, wQF[2]),
+    spacer(), spacer(), spacer(),
+    brMatch(qft[3].home, qft[3].away, wQF[3]),
+    spacer(),
+  ];
+  const rightSF = [
+    spacer(), spacer(),
+    brMatch(sft[1].home, sft[1].away, wSF[1]),
+    spacer(), spacer(),
+  ];
+
+  el.innerHTML = `
+  <div class="brwrap">
+    <div class="brtitle"><i class="ti ti-trophy"></i> Bracket Mundial 2026</div>
+    <div class="brscroll">
+      <div class="brgrid">
+        <div class="brhdr">16avos</div>
+        <div class="brhdr">8vos</div>
+        <div class="brhdr">Cuartos</div>
+        <div class="brhdr">Semi</div>
+        <div class="brhdr"></div>
+        <div class="brhdr">Semi</div>
+        <div class="brhdr">Cuartos</div>
+        <div class="brhdr">8vos</div>
+        <div class="brhdr">16avos</div>
+
+        ${col(leftR32)}
+        ${col(leftR16)}
+        ${col(leftQF)}
+        ${col(leftSF)}
+
+        <div class="brcenter">
+          <div class="br-champion">
+            ${champFlag}
+            <div class="br-champ-label">🏆 Campeón</div>
+            <div class="br-champ-name">${champion || '?'}</div>
+          </div>
+          <div class="br-third-wrap">
+            <div class="br-third-label">🥉 3er lugar</div>
+            <div class="br-third-flags">
+              ${brFlag(tp1, tpW===tp1, 32)}
+              <span class="br-third-vs">vs</span>
+              ${brFlag(tp2, tpW===tp2, 32)}
+            </div>
+          </div>
+        </div>
+
+        ${col(rightSF)}
+        ${col(rightQF)}
+        ${col(rightR16)}
+        ${col(rightR32)}
+      </div>
+    </div>
+    <p class="br-note"><i class="ti ti-info-circle"></i> Se actualiza automáticamente con los resultados oficiales.</p>
+  </div>`;
+}

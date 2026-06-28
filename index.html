@@ -77,6 +77,9 @@
       <button class="tab" onclick="showTab('tab-stats',this)">
         <i class="ti ti-chart-bar"></i> Estadísticas
       </button>
+      <button class="tab" onclick="showTab('tab-bracket',this)">
+        <i class="ti ti-tournament"></i> Bracket
+      </button>
       <button class="tab hidden" id="tab-admin-btn" onclick="showTab('tab-admin',this)">
         <i class="ti ti-settings"></i> Admin
       </button>
@@ -165,19 +168,24 @@
     </div>
 
     <!-- ADMIN TAB -->
+    <!-- BRACKET TAB -->
+    <div id="tab-bracket" class="tab-content hidden">
+      <div style="padding:2rem;text-align:center;color:var(--text-secondary)"><i class="ti ti-loader ti-spin"></i> Cargando bracket...</div>
+    </div>
+
     <div id="tab-admin" class="tab-content hidden">
 
       <!-- Sync Panel -->
       <div class="card" style="margin-bottom:1rem;background:var(--accent-bg);border-color:var(--accent)">
         <div class="section-title" style="color:var(--accent-text)"><i class="ti ti-world-download"></i> Sincronización automática</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-          <button class="btn btn-primary btn-sm" id="btn-import" onclick="importFixtures()">
-            <i class="ti ti-calendar-down"></i> Importar / actualizar partidos
+          <button class="btn btn-primary" id="btn-sync-all" onclick="syncAll()" style="font-size:14px;padding:10px 20px;gap:8px">
+            <i class="ti ti-refresh"></i> 🔄 Sincronizar
           </button>
-          <!--<button class="btn btn-sm" id="btn-sync" onclick="syncResults()" style="background:var(--success-bg);border-color:var(--success-text);color:var(--success-text)">
-            <i class="ti ti-refresh"></i> Actualizar resultados
-          </button>
-          <span style="font-size:11px;color:var(--accent-text)">Partidos: openfootball (gratis) · Resultados: API-Football (requiere key gratuita)</span>-->
+          <div style="font-size:11px;color:var(--accent-text);line-height:1.5">
+            Importa partidos nuevos · Corrige horarios y fases · Actualiza resultados · Elimina duplicados<br>
+            <span style="opacity:.7">Fuente: openfootball · Una sola llamada, todo actualizado.</span>
+          </div>
         </div>
       </div>
 
@@ -295,6 +303,7 @@
             <label>Fase</label>
             <select id="m-phase">
               <option>Fase de grupos</option>
+              <option>Dieciseisavos de final</option>
               <option>Octavos de final</option>
               <option>Cuartos de final</option>
               <option>Semifinal</option>
@@ -370,6 +379,7 @@
           <label>Fase</label>
           <select id="edit-phase">
             <option>Fase de grupos</option>
+            <option>Dieciseisavos de final</option>
             <option>Octavos de final</option>
             <option>Cuartos de final</option>
             <option>Semifinal</option>
