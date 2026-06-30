@@ -1337,7 +1337,12 @@ async function syncAll() {
       const datetime = toUTC(of.date, of.time);
       const phase    = roundToPhase(of.round, of.group);
       const result   = of.score?.ft
-        ? { home: String(of.score.ft[0]), away: String(of.score.ft[1]) }
+        ? {
+            home:    String(of.score.ft[0]),
+            away:    String(of.score.ft[1]),
+            penHome: of.score.p ? String(of.score.p[0]) : '',
+            penAway: of.score.p ? String(of.score.p[1]) : '',
+          }
         : null;
       const goals1 = (of.goals1 || []).map(g => ({ name: g.name, minute: g.minute }));
       const goals2 = (of.goals2 || []).map(g => ({ name: g.name, minute: g.minute }));
@@ -1348,7 +1353,22 @@ async function syncAll() {
         if (existing.datetime !== datetime) { existing.datetime = datetime; timeFixed++; }
         if (existing.phase !== phase)       { existing.phase = phase;       phaseFixed++; }
         if (result && (existing.result?.home !== result.home || existing.result?.away !== result.away)) {
-          existing.result = result; resultsFixed++;
+          // Preservar penales ingresados manualmente si openfootball no los trae todavía
+          existing.result = {
+            home:    result.home,
+            away:    result.away,
+            penHome: result.penHome !== '' ? result.penHome : (existing.result?.penHome ?? ''),
+            penAway: result.penAway !== '' ? result.penAway : (existing.result?.penAway ?? ''),
+          };
+          resultsFixed++;
+        } else if (result && of.score?.p) {
+          // Resultado ya coincidía, pero pueden haber llegado penales nuevos
+          const hadPen = existing.result?.penHome != null && existing.result?.penHome !== '';
+          if (!hadPen) {
+            existing.result.penHome = result.penHome;
+            existing.result.penAway = result.penAway;
+            resultsFixed++;
+          }
         }
         if (result) { existing.goals1 = goals1; existing.goals2 = goals2; }
       } else {
