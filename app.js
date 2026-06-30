@@ -429,6 +429,15 @@ function isLocked(match) {
   return Date.now() >= new Date(match.datetime).getTime() - 60 * 60 * 1000;
 }
 
+// Ganador por penales en un empate: 'H' | 'A' | null
+function penWinner(result) {
+  if (!result || result.penHome == null || result.penAway == null) return null;
+  if (result.penHome === '' || result.penAway === '') return null;
+  const ph = parseInt(result.penHome), pa = parseInt(result.penAway);
+  if (isNaN(ph) || isNaN(pa) || ph === pa) return null;
+  return ph > pa ? 'H' : 'A';
+}
+
 // Sistema de puntos familia: exacto=3, resultado=1 (sin bonos adicionales)
 function calcPoints(userId, match) {
   if (!match.result || match.result.home === '') return 0;
@@ -438,9 +447,15 @@ function calcPoints(userId, match) {
   const rh = parseInt(match.result.home ?? 0), ra = parseInt(match.result.away ?? 0);
   const ph = parseInt(np.home ?? 0),           pa = parseInt(np.away ?? 0);
   if (ph === rh && pa === ra) return state.points.exact;
-  const rRes = rh > ra ? 'H' : rh < ra ? 'A' : 'D';
+  const rawRes = rh > ra ? 'H' : rh < ra ? 'A' : 'D';
+  const pen = penWinner(match.result);
+  // En empate con penales: quien predijo empate (marcador real) O quien predijo
+  // al ganador de penales, ambos reciben puntos de ganador.
   const pRes = ph > pa ? 'H' : ph < pa ? 'A' : 'D';
-  return rRes === pRes ? state.points.result : 0;
+  if (pen) {
+    return (pRes === 'D' || pRes === pen) ? state.points.result : 0;
+  }
+  return rawRes === pRes ? state.points.result : 0;
 }
 
 function getTableData() {
@@ -918,7 +933,7 @@ function renderComparar() {
   order.forEach(key => {
     const ms = groups[key];
     if (!ms.length) return;
-    const open = key === 'done' || (!groups.done.length && key === firstVisible);
+    const open = true; // todos los grupos abiertos por defecto
     html += '<div class="cmp-group' + (open ? ' open' : '') + '" id="cmpg-' + key + '">'
       + '<button class="cmp-group-head" onclick="toggleCmpGroup(\'' + key + '\')">'
       + '<i class="ti ' + meta[key].icon + ' cmp-group-icon"></i>'
@@ -1627,8 +1642,13 @@ function getWinnerOf(home, away) {
   const rh = m.result?.home, ra = m.result?.away;
   if (rh === '' || rh == null || ra === '' || ra == null) return null;
   const nh = parseInt(rh), na = parseInt(ra);
-  if (isNaN(nh) || isNaN(na) || nh === na) return null; // draw = wait for pens
-  return nh > na ? m.home : m.away;
+  if (isNaN(nh) || isNaN(na)) return null;
+  if (nh > na) return m.home;
+  if (na > nh) return m.away;
+  // Empate en tiempo reglamentario: desempate por penales
+  const pw = penWinner(m.result);
+  if (!pw) return null; // aún sin resultado de penales
+  return pw === 'H' ? m.home : m.away;
 }
 
 function resolveBracket() {
