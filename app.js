@@ -1000,8 +1000,12 @@ function cmpCard(m) {
         + '</div>';
     }).join('');
 
+  const pen = penWinner(m.result);
+  const penStr = pen && hasResult
+    ? ' <span style="font-size:11px;font-weight:500;color:var(--text-secondary)">(pen ' + m.result.penHome + '–' + m.result.penAway + ')</span>'
+    : '';
   const center = hasResult
-    ? '<span class="cmp-score">' + m.result.home + ' - ' + m.result.away + '</span>'
+    ? '<span class="cmp-score">' + m.result.home + ' - ' + m.result.away + penStr + '</span>'
     : '<span class="cmp-vs">vs</span>';
   const subline = hasResult
     ? 'Resultado final'
@@ -1063,6 +1067,8 @@ function renderAdminMatches() {
   container.innerHTML = matches.map(m => {
     const dtStr = fmtDateShort(m.datetime) + ' ' + fmtTime(m.datetime);
     const hasResult = m.result && m.result.home !== '';
+    const isDraw = hasResult && parseInt(m.result.home) === parseInt(m.result.away);
+    const hasPen = isDraw && (m.result.penHome != null && m.result.penHome !== '');
 
     return `<div class="admin-match-row">
       <span style="font-size:13px;flex:1;min-width:160px">
@@ -1070,10 +1076,18 @@ function renderAdminMatches() {
         <span style="color:var(--text-secondary);font-size:11px">${dtStr} · ${m.phase}</span>
       </span>
       <input type="number" min="0" max="20" placeholder="L" value="${hasResult ? m.result.home : ''}"
-        id="res-h-${m.id}" class="score-input">
+        id="res-h-${m.id}" class="score-input" oninput="togglePenBlock('${m.id}')">
       <span class="score-sep">–</span>
       <input type="number" min="0" max="20" placeholder="V" value="${hasResult ? m.result.away : ''}"
-        id="res-a-${m.id}" class="score-input">
+        id="res-a-${m.id}" class="score-input" oninput="togglePenBlock('${m.id}')">
+      <div class="pen-block${isDraw ? '' : ' hidden'}" id="pen-block-${m.id}">
+        <span class="pen-label">Pen</span>
+        <input type="number" min="0" max="20" placeholder="L" value="${hasPen ? m.result.penHome : ''}"
+          id="pen-h-${m.id}" class="pen-input">
+        <span class="score-sep">–</span>
+        <input type="number" min="0" max="20" placeholder="V" value="${hasPen ? m.result.penAway : ''}"
+          id="pen-a-${m.id}" class="pen-input">
+      </div>
       <button class="btn btn-sm btn-primary" onclick="saveResult('${m.id}')">
         <i class="ti ti-check"></i> Guardar
       </button>
@@ -1092,8 +1106,21 @@ async function saveResult(matchId) {
   const a = document.getElementById('res-a-' + matchId).value;
   const m = state.matches.find(x => x.id === matchId);
   if (!m) return;
-  m.result = { home: h, away: a };
+  const isDraw = h !== '' && a !== '' && parseInt(h) === parseInt(a);
+  const penH = isDraw ? (document.getElementById('pen-h-' + matchId)?.value ?? '') : '';
+  const penA = isDraw ? (document.getElementById('pen-a-' + matchId)?.value ?? '') : '';
+  m.result = { home: h, away: a, penHome: penH, penAway: penA };
   await saveState();
+}
+
+// Muestra u oculta el bloque de penales según si el marcador es empate
+function togglePenBlock(matchId) {
+  const h = document.getElementById('res-h-' + matchId)?.value;
+  const a = document.getElementById('res-a-' + matchId)?.value;
+  const block = document.getElementById('pen-block-' + matchId);
+  if (!block) return;
+  const isDraw = h !== '' && a !== '' && parseInt(h) === parseInt(a);
+  block.classList.toggle('hidden', !isDraw);
 }
 
 let _deleteMatchId = null;
