@@ -1989,6 +1989,15 @@ initFirebase().catch(err => {
   </div>`;
 });
 
+// Registra el service worker (requisito técnico de Chrome/Android para poder
+// "instalar" la app con ícono propio). Si falla (navegador viejo, http sin
+// https, etc.) la app sigue funcionando normal, solo sin esa opción.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW no registrado:', err));
+  });
+}
+
 // Refresca el estado "en vivo" de los partidos cada minuto.
 setInterval(() => { if (state.currentUser && state.editingAs) renderMatches(); }, 60000);
 

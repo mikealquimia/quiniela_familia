@@ -2,8 +2,22 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Quiniela Familia · Mundial 2026</title>
+
+<!-- PWA: hace que la app se pueda "instalar" en el teléfono, con ícono y
+     pantalla completa (sin barra del navegador), en vez de solo ser una
+     pestaña más. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#DD7A1F">
+<link rel="icon" href="icon-192.png" type="image/png">
+<!-- iOS ignora el manifest para el ícono/nombre en pantalla de inicio; usa sus
+     propias meta tags. Sin esto, "Agregar a inicio" en iPhone se ve genérico. -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quiniela Familia">
+
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/dist/tabler-icons.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

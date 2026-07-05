@@ -33,8 +33,41 @@
   bracket se ven igual que antes, pero ahora responden al tacto en un área
   bastante más grande alrededor de cada uno — en pantallas de celular los
   nodos visuales miden apenas ~10-15px, muy chico para el dedo.
+- **La app ahora es instalable (PWA)**: se agregó `manifest.json`, `sw.js`
+  (service worker) e íconos (`icon-192.png`, `icon-512.png`,
+  `icon-512-maskable.png`, `apple-touch-icon.png`), todos con el trofeo y los
+  colores de marca. Con esto el teléfono ofrece "Instalar" / "Agregar a
+  inicio" y la app abre en pantalla completa, con su propio ícono, como una
+  app normal — ver la sección **"Instalarla en el teléfono"** más abajo.
 
 ---
+
+## 📱 Instalarla en el teléfono (PWA)
+
+Esto **no es una app nueva que subir a una tienda** — es la misma página web
+de siempre, pero ahora cumple los requisitos técnicos para que el teléfono la
+deje "instalar" con ícono propio y sin la barra del navegador.
+
+**Android (Chrome):**
+1. Abrí el link de la quiniela en Chrome.
+2. Va a aparecer un botón "Instalar app" solo, o desde el menú ⋮ → **"Instalar app"** / **"Agregar a pantalla de inicio"**.
+3. Listo — queda un ícono como cualquier otra app, y abre en pantalla completa.
+
+**iPhone (Safari):**
+- iOS **no muestra un botón automático** — hay que hacerlo a mano, siempre:
+  1. Abrí el link en **Safari** (tiene que ser Safari, no Chrome — en iOS todos los navegadores usan el motor de Safari pero solo Safari puede agregar a inicio).
+  2. Tocá el ícono de compartir (el cuadrito con la flecha hacia arriba).
+  3. Buscá **"Agregar a pantalla de inicio"**.
+
+**Después de subir estos cambios**, si alguien de la familia ya tenía la
+página guardada como acceso directo desde antes, puede que tenga que
+borrarla y volver a agregarla una vez para que tome el ícono y el modo
+pantalla-completa nuevos.
+
+> Nota técnica: los datos de la quiniela siguen viviendo en Firestore y
+> necesitan internet para estar al día — esto no la vuelve una app 100%
+> offline, solo hace que abra como una app instalada en vez de una pestaña
+> del navegador.
 
 Versión **súper-mejorada** de tu quiniela: toma el motor más avanzado de
 `quiniela-2026`, le corrige un par de detalles finos, le agrega funciones
