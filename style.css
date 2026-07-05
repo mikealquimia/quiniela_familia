@@ -78,6 +78,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html, body { overflow-x: hidden; }
+
 body {
   font-family: var(--font-body);
   background: var(--bg);
@@ -104,31 +106,118 @@ body {
   align-items: center;
   justify-content: center;
   padding: 1.5rem 1rem 3rem;
+  position: relative;
+  overflow: hidden;
 }
 
-/* Signature element: listón de papel picado */
-.fiesta-bunting { width: 100%; max-width: 420px; margin-bottom: 4px; position: relative; height: 46px; }
+/* Confeti de fondo, sutil, tipo papel picado cayendo */
+.login-confetti { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.confetti {
+  position: absolute; top: -8%;
+  width: 7px; height: 7px; background: var(--c, var(--accent));
+  opacity: 0.6; border-radius: 1px;
+  animation: confettiFall 6.5s linear infinite;
+  animation-delay: var(--d, 0s);
+}
+.confetti:nth-child(even) { border-radius: 50%; width: 5px; height: 5px; }
+@keyframes confettiFall {
+  0%   { transform: translateY(-10vh) rotate(0deg); opacity: 0; }
+  8%   { opacity: 0.65; }
+  92%  { opacity: 0.5; }
+  100% { transform: translateY(112vh) rotate(var(--r, 20deg)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .confetti { animation: none; display: none; } }
+
+/* Mismo confeti, cayendo detrás del contenido de la app ya logueada — celebración constante */
+.app-confetti { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.app-confetti .confetti { opacity: 0.37; animation-duration: 9s; }
+.app-confetti .confetti:nth-child(even) { opacity: 0.23; }
+
+/* ─── Cambio de pestaña: cada tarjeta se desliza sutilmente en horizontal,
+   con dirección/distancia aleatoria por bloque — salida y entrada a la vez ─── */
+.cuadrito-exit {
+  animation: cuadritoOut 0.3s cubic-bezier(0.4,0,1,1) forwards;
+}
+.cuadrito-enter {
+  animation: cuadritoIn 0.34s cubic-bezier(0.22,1,0.36,1) both;
+}
+@keyframes cuadritoOut {
+  to { opacity: 0; transform: translateX(var(--tx, -22px)); }
+}
+@keyframes cuadritoIn {
+  from { opacity: 0; transform: translateX(var(--tx, 22px)); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .cuadrito-exit, .cuadrito-enter { animation: none !important; } }
+
+/* ── Transición: el boleto de login se disuelve y revela la quiniela ── */
+#screen-login.login-exit .login-pass { animation: loginPassOut 0.6s cubic-bezier(0.4,0,0.2,1) forwards; }
+#screen-login.login-exit .fiesta-bunting { animation: buntingOut 0.5s ease forwards; }
+#screen-login.login-exit .login-confetti { animation: confettiOut 0.5s ease forwards; }
+@keyframes loginPassOut { to { opacity: 0; transform: scale(0.86) translateY(-26px); filter: blur(6px); } }
+@keyframes buntingOut { to { opacity: 0; transform: translateY(-16px); } }
+@keyframes confettiOut { to { opacity: 0; } }
+
+#screen-main.main-enter .app-header,
+#screen-main.main-enter .tabs,
+#screen-main.main-enter #tab-quiniela > * {
+  animation: mainEnterUp 0.55s cubic-bezier(0.22,1,0.36,1) both;
+}
+#screen-main.main-enter .app-header { animation-delay: 0.05s; }
+#screen-main.main-enter .tabs { animation-delay: 0.14s; }
+#screen-main.main-enter #tab-quiniela > *:nth-child(1) { animation-delay: 0.22s; }
+#screen-main.main-enter #tab-quiniela > *:nth-child(2) { animation-delay: 0.28s; }
+#screen-main.main-enter #tab-quiniela > *:nth-child(3) { animation-delay: 0.34s; }
+#screen-main.main-enter #tab-quiniela > *:nth-child(4) { animation-delay: 0.4s; }
+@keyframes mainEnterUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  #screen-login.login-exit .login-pass,
+  #screen-login.login-exit .fiesta-bunting,
+  #screen-login.login-exit .login-confetti,
+  #screen-main.main-enter .app-header,
+  #screen-main.main-enter .tabs,
+  #screen-main.main-enter #tab-quiniela > * { animation: none !important; }
+}
+
+/* Signature element: listón de papel picado, meciéndose como si el viento lo moviera */
+.fiesta-bunting { width: 100%; max-width: 420px; margin-bottom: 4px; position: relative; height: 46px; z-index: 1; }
 .bunting-svg { width: 100%; height: 46px; display: block; position: absolute; top: 0; left: 0; }
 .bunting-string { fill: none; stroke: var(--border-hover); stroke-width: 2; }
 .bunting-flags {
   position: absolute; top: 6px; left: 0; right: 0;
   display: flex; justify-content: space-between; padding: 0 6px;
+  animation: buntingGust 5.4s ease-in-out infinite;
 }
 .pflag {
   width: 30px; height: 34px; flex-shrink: 0;
   clip-path: polygon(0 0, 100% 0, 50% 100%);
-  animation: buntingSway 3.6s ease-in-out infinite;
+  animation: buntingSway 2.6s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -0.22s);
   transform-origin: top center;
+  will-change: transform;
 }
+.pflag:nth-child(odd) { animation-duration: 2.9s; }
+.pflag:nth-child(3n) { animation-duration: 3.2s; }
 .pflag-1 { background: var(--pp-1); }
 .pflag-2 { background: var(--pp-2); }
 .pflag-3 { background: var(--pp-3); }
 .pflag-4 { background: var(--pp-4); }
 .pflag-5 { background: var(--pp-5); }
-.pflag:nth-child(odd) { animation-delay: -1.2s; }
-.pflag:nth-child(3n) { animation-delay: -2.4s; }
-@keyframes buntingSway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
-@media (prefers-reduced-motion: reduce) { .pflag { animation: none; } }
+@keyframes buntingSway {
+  0%   { transform: rotate(-9deg) translateX(-2px) scaleY(1); }
+  30%  { transform: rotate(5deg)  translateX(1.5px) scaleY(0.965); }
+  55%  { transform: rotate(10deg) translateX(3px)  scaleY(1); }
+  80%  { transform: rotate(-3deg) translateX(-1px) scaleY(0.975); }
+  100% { transform: rotate(-9deg) translateX(-2px) scaleY(1); }
+}
+/* Ráfaga ocasional: todo el listón se mece un poco más fuerte, como una racha de viento */
+@keyframes buntingGust {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  45% { transform: translateY(1px) rotate(0.4deg); }
+  60% { transform: translateY(-2px) rotate(-0.6deg); }
+  75% { transform: translateY(0.5px) rotate(0.3deg); }
+}
+@media (prefers-reduced-motion: reduce) { .pflag, .bunting-flags { animation: none; } }
 
 .login-pass {
   width: 100%;
@@ -168,14 +257,27 @@ body {
   border-bottom: 2px solid var(--pp-1);
 }
 .pass-trophy {
-  font-size: 30px; margin: 16px 0 6px;
-  width: 58px; height: 58px; border-radius: 50%;
-  background: rgba(255,255,255,0.14);
+  position: relative;
+  margin: 14px auto 6px;
+  width: 96px; height: 92px;
   display: flex; align-items: center; justify-content: center;
-  margin-left: auto; margin-right: auto;
-  color: #FCEAD2;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
 }
+.pass-trophy::before {
+  content: '';
+  position: absolute; inset: -6px;
+  background: radial-gradient(circle, rgba(252,192,140,0.55) 0%, transparent 70%);
+  filter: blur(4px);
+  animation: trophyGlow 3.4s ease-in-out infinite;
+}
+.pass-trophy img {
+  position: relative;
+  width: 88px; height: auto;
+  filter: drop-shadow(0 10px 16px rgba(0,0,0,0.35));
+  animation: trophyFloat 3.4s ease-in-out infinite;
+}
+@keyframes trophyFloat { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-6px) rotate(-1.5deg); } }
+@keyframes trophyGlow { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 0.9; transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .pass-trophy img, .pass-trophy::before { animation: none; } }
 .pass-title {
   position: relative;
   font-family: var(--font-display);
@@ -641,6 +743,9 @@ details.card > summary .ti-chevron-down { display: none; }
 .brw-node-hover { transform-box: fill-box; transform-origin: center; transition: transform .30s ease-out; }
 .brw-node { cursor: pointer; }
 .brw-node:hover .brw-node-hover { transform: scale(1.5); }
+.brw-node-appear { animation: brwNodeAppear 0.55s cubic-bezier(0.22,1,0.36,1) both; transform-box: fill-box; transform-origin: center; }
+@keyframes brwNodeAppear { from { opacity: 0; transform: scale(0.35); } to { opacity: 1; transform: scale(1); } }
+
 .brw-node-q { font-size: 9px; fill: rgba(255,255,255,.32); font-weight: 700; }
 .brw-flagimg { transition: filter .5s, opacity .5s; }
 .brw-node-out .brw-flagimg { filter: grayscale(1) brightness(.5); opacity: .55; }
@@ -650,6 +755,11 @@ details.card > summary .ti-chevron-down { display: none; }
 
 .brw-center-disc { fill: #2A0E20; stroke: #F0954A; stroke-width: 1.5; }
 .brw-center-glow { filter: blur(10px); }
+.brw-center-champ .brw-center-glow { animation: brwChampPulse 1.8s ease-in-out infinite; }
+.brw-center-champ .brw-center-disc { animation: brwChampRing 1.8s ease-in-out infinite; }
+@keyframes brwChampPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(1.18); } }
+@keyframes brwChampRing { 0%, 100% { stroke-width: 1.5; } 50% { stroke-width: 3; } }
+@media (prefers-reduced-motion: reduce) { .brw-node-appear { animation: none; } .brw-center-champ .brw-center-glow, .brw-center-champ .brw-center-disc { animation: none; } }
 
 .brw-champ-caption { text-align: center; margin-top: 12px; font-family: var(--font-display); font-size: 14px; font-weight: 700; color: #F0954A; letter-spacing: -0.01em; }
 

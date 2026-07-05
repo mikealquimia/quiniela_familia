@@ -302,6 +302,35 @@ function clearPin() {
   document.getElementById("pin-0").focus();
 }
 
+// Sonido sutil de confirmación al entrar — un pequeño "ding" sintetizado,
+// nada de archivos de audio, para no depender de nada externo.
+let _loginAudioCtx = null;
+function playLoginChime() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!_loginAudioCtx) _loginAudioCtx = new Ctx();
+    const ctx = _loginAudioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const notes = [660, 880]; // intervalo cálido, tipo "sello de boleto aprobado"
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const start = now + i * 0.1;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.14, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.38);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.4);
+    });
+  } catch (e) { /* si el navegador bloquea audio, seguimos sin sonido */ }
+}
+
 function doLogin() {
   const id = document.getElementById('login-select').value;
   if (!id) { alert('Selecciona tu nombre'); return; }
@@ -319,10 +348,10 @@ function doLogin() {
   document.getElementById('pin-error').classList.add('hidden');
   [0,1,2,3].forEach(i => document.getElementById('pin-'+i).classList.remove('error'));
 
+  playLoginChime();
+
   state.currentUser = user;
   state.editingAs = user;
-  document.getElementById('screen-login').classList.add('hidden');
-  document.getElementById('screen-main').classList.remove('hidden');
 
   const av = document.getElementById('user-avatar');
   av.textContent = initials(user.name);
@@ -344,7 +373,35 @@ function doLogin() {
   const elResult2 = document.getElementById('pts-result');
   if (elExact2)  elExact2.value  = state.points.exact;
   if (elResult2) elResult2.value = state.points.result;
+
+  // Preparamos todo el contenido de "Mi quiniela" ANTES de mostrarlo, para
+  // que la transición revele las tarjetas ya listas, sin parpadeo.
   refreshAll();
+  transitionToMain();
+}
+
+// Anima la salida del boleto de login y la entrada escalonada de la
+// quiniela (header → tabs → tarjetas de partidos), como si el boleto se
+// abriera para mostrar el contenido de adentro.
+function transitionToMain() {
+  const loginEl = document.getElementById('screen-login');
+  const mainEl  = document.getElementById('screen-main');
+  const prefersNoMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (prefersNoMotion) {
+    loginEl.classList.add('hidden');
+    mainEl.classList.remove('hidden');
+    return;
+  }
+
+  loginEl.classList.add('login-exit');
+  setTimeout(() => {
+    loginEl.classList.add('hidden');
+    loginEl.classList.remove('login-exit');
+    mainEl.classList.remove('hidden');
+    mainEl.classList.add('main-enter');
+    setTimeout(() => mainEl.classList.remove('main-enter'), 950);
+  }, 560);
 }
 
 function doLogout() {
@@ -377,15 +434,62 @@ function refreshAll() {
 }
 
 // ─── Tabs ────────────────────────────────────────────────────────────────────
-function showTab(id, btn) {
-  ['tab-quiniela','tab-tabla','tab-stats','tab-comparar','tab-admin','tab-bracket'].forEach(t => {
-    document.getElementById(t).classList.add('hidden');
+const TAB_IDS = ['tab-quiniela','tab-tabla','tab-stats','tab-comparar','tab-admin','tab-bracket'];
+
+// Anima los hijos directos de un tab-content en línea recta horizontal —
+// cada uno con distancia/dirección aleatoria — sin giro y sin desvanecerse.
+function randomizePieces(container, cls) {
+  const kids = Array.from(container.children);
+  kids.forEach(k => {
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const dist = 14 + Math.random() * 22; // px — sutil, no invade el layout
+    k.style.setProperty('--tx', (dir * dist).toFixed(0) + 'px');
+    k.style.animationDelay = (Math.random() * 60).toFixed(0) + 'ms';
+    k.classList.add(cls);
   });
-  document.getElementById(id).classList.remove('hidden');
+  return kids;
+}
+function clearPieces(kids, cls) {
+  kids.forEach(k => {
+    k.classList.remove(cls);
+    k.style.removeProperty('--tx');
+    k.style.removeProperty('animation-delay');
+  });
+}
+
+function showTab(id, btn) {
+  const currentId = TAB_IDS.find(t => !document.getElementById(t).classList.contains('hidden'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  if (id === 'tab-comparar') renderComparar();
-  if (id === 'tab-bracket') renderBracket();
+
+  const finish = () => {
+    if (id === 'tab-comparar') renderComparar();
+    if (id === 'tab-bracket') renderBracket();
+  };
+
+  const currentEl = currentId ? document.getElementById(currentId) : null;
+  const nextEl = document.getElementById(id);
+  const prefersNoMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!currentEl || currentId === id || prefersNoMotion) {
+    TAB_IDS.forEach(t => document.getElementById(t).classList.add('hidden'));
+    nextEl.classList.remove('hidden');
+    finish();
+    return;
+  }
+
+  // Salida y entrada arrancan al mismo tiempo — sin espacio en blanco entre ellas.
+  const exiting = randomizePieces(currentEl, 'cuadrito-exit');
+  nextEl.classList.remove('hidden');
+  const entering = randomizePieces(nextEl, 'cuadrito-enter');
+  finish();
+
+  setTimeout(() => {
+    clearPieces(exiting, 'cuadrito-exit');
+    clearPieces(entering, 'cuadrito-enter');
+    currentEl.classList.add('hidden');
+    TAB_IDS.filter(t => t !== id).forEach(t => document.getElementById(t).classList.add('hidden'));
+  }, 340);
 }
 function toggleCmpCard(id)  { document.getElementById('cmpc-' + id)?.classList.toggle('open'); }
 function toggleCmpGroup(key) { document.getElementById('cmpg-' + key)?.classList.toggle('open'); }
@@ -1882,17 +1986,23 @@ function brPos(level, idx) {
 }
 
 let brClipSeq = 0;
+// Colores de ronda: el circuito se va "calentando" hacia el dorado del centro,
+// dándole a cada anillo su propia identidad y sensación de progreso.
+const BR_LEVEL_GLOW = ['#3FD1C0', '#6E8CFF', '#C36BD9', '#F0954A', '#FFD25A'];
 // Solo dibuja un nodo cuando ya se conoce el equipo — nada de círculos
 // grises de "por definir" en los niveles todavía sin resolver.
-function brRadialFlag(team, x, y, r, out) {
+function brRadialFlag(team, x, y, r, out, appearDelay) {
   if (!team) return '';
   const gx = x.toFixed(1), gy = y.toFixed(1);
   const code = TEAM_FLAGS[team];
+  const delayAttr = `style="animation-delay:${(appearDelay || 0).toFixed(2)}s"`;
   if (!code) {
     return `<g transform="translate(${gx},${gy})" class="brw-node">
-      <g class="brw-node-hover">
-        <circle r="${r}" class="brw-node-ring"/>
-        <text class="brw-node-q" x="0" y="1" text-anchor="middle" dominant-baseline="central">?</text>
+      <g class="brw-node-appear" ${delayAttr}>
+        <g class="brw-node-hover">
+          <circle r="${r}" class="brw-node-ring"/>
+          <text class="brw-node-q" x="0" y="1" text-anchor="middle" dominant-baseline="central">?</text>
+        </g>
       </g>
       <title>${team}</title>
     </g>`;
@@ -1901,18 +2011,38 @@ function brRadialFlag(team, x, y, r, out) {
   const cid = 'brwclip' + brClipSeq;
   const d = r * 2 - 2.4;
   return `<g transform="translate(${gx},${gy})" class="brw-node${out ? ' brw-node-out' : ''}">
-    <g class="brw-node-spin">
-      <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="-360 0 0" dur="${BR_SPIN_DUR}s" repeatCount="indefinite"/>
-      <g class="brw-node-hover">
-        <clipPath id="${cid}"><circle r="${(r - 1.2).toFixed(1)}"/></clipPath>
-        <circle r="${r}" class="brw-node-ring${out ? ' brw-node-ring-out' : ''}"/>
-        <image href="https://flagcdn.com/w80/${code}.png" x="${(-d / 2).toFixed(1)}" y="${(-d * 0.72 / 2).toFixed(1)}"
-          width="${d.toFixed(1)}" height="${(d * 0.72).toFixed(1)}" clip-path="url(#${cid})"
-          preserveAspectRatio="xMidYMid slice" class="brw-flagimg"/>
+    <g class="brw-node-appear" ${delayAttr}>
+      <g class="brw-node-spin">
+        <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="-360 0 0" dur="${BR_SPIN_DUR}s" repeatCount="indefinite"/>
+        <g class="brw-node-hover">
+          <clipPath id="${cid}"><circle r="${(r - 1.2).toFixed(1)}"/></clipPath>
+          <circle r="${r}" class="brw-node-ring${out ? ' brw-node-ring-out' : ''}"/>
+          <image href="https://flagcdn.com/w80/${code}.png" x="${(-d / 2).toFixed(1)}" y="${(-d * 0.72 / 2).toFixed(1)}"
+            width="${d.toFixed(1)}" height="${(d * 0.72).toFixed(1)}" clip-path="url(#${cid})"
+            preserveAspectRatio="xMidYMid slice" class="brw-flagimg"/>
+        </g>
       </g>
     </g>
     <title>${team}</title>
   </g>`;
+}
+
+// Estrellas de fondo, sutiles y parpadeantes — dan vida a la "noche de estadio".
+function brStarsSvg(n) {
+  let out = '';
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 40 + Math.random() * 370;
+    const x = (r * Math.cos(a)).toFixed(1);
+    const y = (r * Math.sin(a)).toFixed(1);
+    const rad = (0.5 + Math.random() * 1.1).toFixed(1);
+    const dur = (2.2 + Math.random() * 3).toFixed(1);
+    const delay = (Math.random() * 4).toFixed(1);
+    out += `<circle cx="${x}" cy="${y}" r="${rad}" fill="#fff" opacity="0.15">
+      <animate attributeName="opacity" values="0.08;0.6;0.08" dur="${dur}s" begin="${delay}s" repeatCount="indefinite"/>
+    </circle>`;
+  }
+  return out;
 }
 
 // Secuencia de luz por tramo (7s en total, siempre de afuera hacia adentro):
@@ -1924,7 +2054,7 @@ const BR_DASH_KT = "0;0.28571;0.71429;1";
 const BR_OPACITY_KT = "0;0.28571;0.33929;0.39286;0.44643;0.5;0.55357;0.60714;0.66071;0.71429;1";
 const BR_OPACITY_VALS = "0.15;1;0.55;1;0.55;1;0.55;1;0.55;1;0.15";
 
-function brRadialEdge(x1, y1, x2, y2, alive, delay) {
+function brRadialEdge(x1, y1, x2, y2, alive, delay, color) {
   const a = [x1.toFixed(1), y1.toFixed(1), x2.toFixed(1), y2.toFixed(1)];
   if (alive) {
     const len = Math.hypot(x2 - x1, y2 - y1);
@@ -1933,9 +2063,10 @@ function brRadialEdge(x1, y1, x2, y2, alive, delay) {
     const dashVals = `${lenF};0;0;${(-len).toFixed(1)}`;
     const dashAnim = `<animate attributeName="stroke-dashoffset" values="${dashVals}" keyTimes="${BR_DASH_KT}" dur="${BR_EDGE_CYCLE}s" begin="${beginAt}s" repeatCount="indefinite" calcMode="linear"/>`;
     const opacityAnim = `<animate attributeName="opacity" values="${BR_OPACITY_VALS}" keyTimes="${BR_OPACITY_KT}" dur="${BR_EDGE_CYCLE}s" begin="${beginAt}s" repeatCount="indefinite" calcMode="linear"/>`;
+    const glowColor = color || '#F0954A';
     return `<g>
       ${opacityAnim}
-      <line x1="${a[0]}" y1="${a[1]}" x2="${a[2]}" y2="${a[3]}" class="brw-edge-glow" stroke-dasharray="${lenF} ${lenF}" stroke-dashoffset="${lenF}">${dashAnim}</line>
+      <line x1="${a[0]}" y1="${a[1]}" x2="${a[2]}" y2="${a[3]}" class="brw-edge-glow" style="stroke:${glowColor}" stroke-dasharray="${lenF} ${lenF}" stroke-dashoffset="${lenF}">${dashAnim}</line>
       <line x1="${a[0]}" y1="${a[1]}" x2="${a[2]}" y2="${a[3]}" class="brw-edge-core" stroke-dasharray="${lenF} ${lenF}" stroke-dashoffset="${lenF}">${dashAnim}</line>
     </g>`;
   }
@@ -1999,13 +2130,14 @@ function buildRadialBracket() {
           x1: c.x, y1: c.y, x2: par.x, y2: par.y,
           alive: !!(c.team && par.team && c.team === par.team),
           delay: level * 1.0,
+          level,
         });
       });
     }
   }
   link(L0, L1, 0); link(L1, L2, 1); link(L2, L3, 2); link(L3, L4, 3);
   [L4[0], L4[1]].forEach(c => {
-    edges.push({ x1: c.x, y1: c.y, x2: 0, y2: 0, alive: !!(c.team && champion && c.team === champion), delay: 4 * 1.0 });
+    edges.push({ x1: c.x, y1: c.y, x2: 0, y2: 0, alive: !!(c.team && champion && c.team === champion), delay: 4 * 1.0, level: 4 });
   });
 
   return { levels: [L0, L1, L2, L3, L4], edges, champion };
@@ -2026,11 +2158,11 @@ function renderBracket() {
 
   let nodesSvg = '';
   levels.forEach((arr, lvl) => {
-    arr.forEach(n => { nodesSvg += brRadialFlag(n.team, n.x, n.y, BR_NODE_SIZE[lvl], n.out); });
+    arr.forEach((n, i) => { nodesSvg += brRadialFlag(n.team, n.x, n.y, BR_NODE_SIZE[lvl], n.out, lvl * 0.05 + i * 0.015); });
   });
 
   let edgesSvg = '';
-  edges.forEach(e => { edgesSvg += brRadialEdge(e.x1, e.y1, e.x2, e.y2, e.alive, e.delay); });
+  edges.forEach(e => { edgesSvg += brRadialEdge(e.x1, e.y1, e.x2, e.y2, e.alive, e.delay, BR_LEVEL_GLOW[e.level]); });
 
   const spokes = Array.from({ length: 16 }, (_, i) => {
     const a = (-90 + i * (360 / 16)) * Math.PI / 180;
@@ -2063,13 +2195,14 @@ function renderBracket() {
         <circle r="258" class="brw-ring"/>
         <circle r="190" class="brw-ring"/>
         <circle r="122" class="brw-ring"/>
+        ${brStarsSvg(16)}
         ${spokes}
         <g class="brw-rotor">
           <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="360 0 0" dur="${BR_SPIN_DUR}s" repeatCount="indefinite"/>
           ${edgesSvg}
           ${nodesSvg}
         </g>
-        <g class="brw-center">
+        <g class="brw-center${champion ? ' brw-center-champ' : ''}">
           <circle r="72" class="brw-center-glow" fill="url(#brwCenterGlow)"/>
           <circle r="40" class="brw-center-disc"/>
           ${champCenter}
