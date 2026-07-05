@@ -764,3 +764,24 @@ details.card > summary .ti-chevron-down { display: none; }
 .brw-champ-caption { text-align: center; margin-top: 12px; font-family: var(--font-display); font-size: 14px; font-weight: 700; color: #F0954A; letter-spacing: -0.01em; }
 
 .br-note { text-align: center; font-size: 11px; color: var(--text-secondary); margin-top: 1rem; opacity: .7; }
+
+/* ── Bracket interactivo: nodos clickeables + panel de detalle de partido ── */
+.brw-clickable { cursor: pointer; }
+.brw-clickable:hover .brw-node-ring,
+.brw-node-hover.brw-clickable:hover .brw-node-ring { stroke-width: 3; filter: drop-shadow(0 0 4px var(--accent)); }
+.brw-center.brw-clickable:hover .brw-center-disc { stroke-width: 2.5; }
+
+.brm-box { max-width: 420px; }
+.brm-box .modal-header { font-family: var(--font-display); font-size: 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.brm-score { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 10px 0 4px; }
+.brm-team { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; text-align: center; }
+.brm-result { font-family: var(--font-mono); font-size: 26px; font-weight: 700; color: var(--accent-text); }
+.brm-note { font-size: 12.5px; color: var(--text-secondary); margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+.brm-hits { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.brm-hit-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.brm-hit-row .badge { margin-left: auto; }
+
+.brm-prob { margin-top: 4px; }
+.brm-prob-bar { height: 10px; border-radius: 999px; background: var(--accent-bg); overflow: hidden; display: flex; }
+.brm-prob-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #F0954A); border-radius: 999px 0 0 999px; transition: width .4s ease; }
+.brm-prob-labels { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-top: 6px; color: var(--text-secondary); }

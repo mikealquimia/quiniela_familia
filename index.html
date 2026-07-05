@@ -112,9 +112,6 @@
     <button class="tab" onclick="showTab('tab-comparar',this)">
       <i class="ti ti-eye"></i> Comparar
     </button>
-    <button class="tab" onclick="showTab('tab-stats',this)">
-      <i class="ti ti-chart-bar"></i> Estadísticas
-    </button>
     <button class="tab" onclick="showTab('tab-bracket',this)">
       <i class="ti ti-tournament"></i> Bracket
     </button>
@@ -139,16 +136,10 @@
     <div id="matches-list"></div>
   </div>
 
-  <!-- TABLA TAB -->
+  <!-- TABLA TAB (fusiona ranking + estadísticas + KPIs) -->
   <div id="tab-tabla" class="tab-content hidden">
-    <div id="tabla-rank" style="margin-bottom:1rem"></div>
-    <div class="stat-grid" id="tabla-stats"></div>
-  </div>
-
-  <!-- STATS TAB -->
-  <div id="tab-stats" class="tab-content hidden">
     <div id="stats-highlights" class="stat-grid" style="margin-bottom:1rem"></div>
-    <div class="card" style="margin-bottom:1rem">
+    <div class="card">
       <div class="section-title">Tabla de posiciones</div>
       <div class="table-wrapper">
         <table>
@@ -160,25 +151,11 @@
               <th class="text-right">Exactos</th>
               <th class="text-right">Ganador</th>
               <th class="text-right">Jugados</th>
-            </tr>
-          </thead>
-          <tbody id="tabla-body"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="card">
-      <div class="section-title">Precisión por participante</div>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Jugador</th>
-              <th class="text-right">% Exactos</th>
               <th class="text-right">% Aciertos</th>
               <th class="text-right">Racha</th>
             </tr>
           </thead>
-          <tbody id="stats-body"></tbody>
+          <tbody id="tabla-body"></tbody>
         </table>
       </div>
     </div>
@@ -203,6 +180,7 @@
 
   <!-- ADMIN TAB -->
   <div id="tab-admin" class="tab-content hidden">
+    <div id="admin-health" class="stat-grid" style="margin-bottom:1rem"></div>
     <div class="card" style="margin-bottom:1rem;background:var(--accent-bg);border-color:var(--accent)">
       <div class="section-title" style="color:var(--accent-text)"><i class="ti ti-world-download"></i> Sincronización automática</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -527,6 +505,17 @@
       <button class="btn btn-sm" onclick="closeChangePinModal()">Cancelar</button>
       <button class="btn btn-primary btn-sm" onclick="saveNewPin()"><i class="ti ti-check"></i> Cambiar PIN</button>
     </div>
+  </div>
+</div>
+
+<!-- BRACKET MATCH DETAIL MODAL -->
+<div id="modal-brmatch-overlay" class="modal-overlay hidden" onclick="closeBrMatchModal()">
+  <div class="modal-box brm-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span id="brm-title">Partido</span>
+      <button class="btn btn-sm btn-icon" onclick="closeBrMatchModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="brm-body"></div>
   </div>
 </div>
 

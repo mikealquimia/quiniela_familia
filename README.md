@@ -1,5 +1,37 @@
 # 🎉 Quiniela Familia · Mundial 2026
 
+## 🆕 Últimos cambios (esta ronda)
+
+- **Tabla + Estadísticas fusionadas** en una sola pestaña "Tabla": ya no hay
+  contenido repetido. Arriba hay KPIs (líder, mejor precisión, mejor racha,
+  rey del empate, partidos jugados) y abajo una sola tabla con todas las
+  columnas (antes eran dos tablas separadas).
+- **Bracket clickeable**: cada cruce (incluido el centro/Final) ahora se
+  puede clickear. Si el partido ya se jugó, muestra marcador, goleadores,
+  cómo se decidió (tiempo extra/penales), sede del partido y quién de la
+  familia le atinó. Si todavía no se juega, muestra una **probabilidad
+  casera** de quién avanza, calculada con los partidos que ya tenés
+  sincronizados (puntos y diferencia de gol por partido en el torneo) — sin
+  depender de ninguna API de pago.
+  > Nota: se evaluó usar API-Football para probabilidades "reales", pero su
+  > plan gratuito no cubre datos de la temporada/torneo del Mundial 2026, así
+  > que se optó por este modelo casero con datos que ya tenés gratis.
+- **Sede del partido**: el sincronizador ahora también guarda el estadio
+  (`ground`) que ya venía gratis en el JSON de openfootball y no se estaba
+  usando.
+- **KPI en "Mi quiniela"**: 🚀 Puntos en juego — el techo de puntos que
+  todavía podés ganar si le atinás a todo lo que falta, más un aviso si te
+  quedan partidos sin pronosticar.
+- **KPIs en "Comparar"**: 🐑 % de coincidencia con el consenso del grupo y
+  🎲 cuántos "picks contrarian" llevás — además, cada tarjeta de partido
+  marca con una etiqueta cuando tu pronóstico le fue en contra al grupo.
+- **KPIs en "Admin"**: panel de salud de datos — resultados pendientes de
+  capturar, quinielas incompletas (con nombres), partidos por bloquearse en
+  menos de 3h, y el total de partidos/participantes. Así ya no hay que
+  revisar partido por partido a mano.
+
+---
+
 Versión **súper-mejorada** de tu quiniela: toma el motor más avanzado de
 `quiniela-2026`, le corrige un par de detalles finos, le agrega funciones
 nuevas, y le pone una identidad visual completamente nueva desde el login.
