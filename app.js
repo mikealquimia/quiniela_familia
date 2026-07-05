@@ -2282,10 +2282,17 @@ function brRadialFlag(team, x, y, r, out, appearDelay, level, idx) {
   // el cruce que llevó a este equipo hasta aquí, o si aún no se juega,
   // la probabilidad casera de ganar.
   const clickAttr = level != null ? ` class="brw-clickable" onclick="openBrMatchModal(${level},${idx})"` : '';
+  // Área de toque invisible, más grande que el círculo visual — en pantallas
+  // de celular el círculo dibujado mide unos 10-15px de diámetro, muy por
+  // debajo de los ~44px recomendados para el dedo. Este círculo transparente
+  // no cambia lo que se ve, solo agranda dónde responde el toque.
+  const hitR = (r + 16).toFixed(1);
+  const hitCircle = level != null ? `<circle r="${hitR}" fill="transparent" class="brw-hit"/>` : '';
   if (!code) {
     return `<g transform="translate(${gx},${gy})" class="brw-node">
       <g class="brw-node-appear" ${delayAttr}>
         <g class="brw-node-hover"${clickAttr}>
+          ${hitCircle}
           <circle r="${r}" class="brw-node-ring"/>
           <text class="brw-node-q" x="0" y="1" text-anchor="middle" dominant-baseline="central">?</text>
         </g>
@@ -2301,6 +2308,7 @@ function brRadialFlag(team, x, y, r, out, appearDelay, level, idx) {
       <g class="brw-node-spin">
         <animateTransform attributeName="transform" type="rotate" from="0 0 0" to="-360 0 0" dur="${BR_SPIN_DUR}s" repeatCount="indefinite"/>
         <g class="brw-node-hover"${clickAttr}>
+          ${hitCircle}
           <clipPath id="${cid}"><circle r="${(r - 1.2).toFixed(1)}"/></clipPath>
           <circle r="${r}" class="brw-node-ring${out ? ' brw-node-ring-out' : ''}"/>
           <image href="https://flagcdn.com/w80/${code}.png" x="${(-d / 2).toFixed(1)}" y="${(-d * 0.72 / 2).toFixed(1)}"

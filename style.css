@@ -785,3 +785,8 @@ details.card > summary .ti-chevron-down { display: none; }
 .brm-prob-bar { height: 10px; border-radius: 999px; background: var(--accent-bg); overflow: hidden; display: flex; }
 .brm-prob-fill { height: 100%; background: linear-gradient(90deg, var(--accent), #F0954A); border-radius: 999px 0 0 999px; transition: width .4s ease; }
 .brm-prob-labels { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-top: 6px; color: var(--text-secondary); }
+
+/* El relleno "transparent" no captura clics por defecto en SVG (pointer-events
+   default es "visiblePainted", que ignora relleno con alpha 0). Sin esta
+   regla, el área de toque ampliada de los nodos del bracket no funcionaría. */
+.brw-hit { pointer-events: all; }

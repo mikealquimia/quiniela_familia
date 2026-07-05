@@ -29,6 +29,10 @@
   capturar, quinielas incompletas (con nombres), partidos por bloquearse en
   menos de 3h, y el total de partidos/participantes. Así ya no hay que
   revisar partido por partido a mano.
+- **Área de toque más grande en el bracket (móvil)**: los círculos del
+  bracket se ven igual que antes, pero ahora responden al tacto en un área
+  bastante más grande alrededor de cada uno — en pantallas de celular los
+  nodos visuales miden apenas ~10-15px, muy chico para el dedo.
 
 ---
 
