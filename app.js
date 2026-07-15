@@ -2021,20 +2021,24 @@ const BRACKET_STRUCTURE = {
     { home: 'Colombia',     away: 'Ghana' },                // 14=M87
     { home: 'Australia',    away: 'Egypt' },                // 15=M88
   ],
-  // R16: W74vsW77, W73vsW75, W76vsW78, W79vsW80, W83vsW84, W81vsW82, W86vsW88, W85vsW87
+  // R16 (orden = M89..M96 del cuadro oficial FIFA, reordenado para que M89/M90
+  // queden junto a M93/M94 -camino de Francia y España- y M91/M92 junto a
+  // M95/M96 -camino de Inglaterra y Argentina-, tal como cruzan de verdad en
+  // cuartos y semifinal):
   r16Pairs: [
-    [1, 4],   // R16[0]: W74 vs W77
-    [0, 2],   // R16[1]: W73 vs W75
-    [3, 5],   // R16[2]: W76 vs W78
-    [6, 7],   // R16[3]: W79 vs W80
-    [10,11],  // R16[4]: W83 vs W84
-    [8, 9],   // R16[5]: W81 vs W82
-    [13,15],  // R16[6]: W86 vs W88
-    [12,14],  // R16[7]: W85 vs W87
+    [1, 4],   // R16[0]=M89: W74 vs W77
+    [0, 2],   // R16[1]=M90: W73 vs W75
+    [10,11],  // R16[2]=M93: W83 vs W84
+    [8, 9],   // R16[3]=M94: W81 vs W82
+    [3, 5],   // R16[4]=M91: W76 vs W78
+    [6, 7],   // R16[5]=M92: W79 vs W80
+    [13,15],  // R16[6]=M95: W86 vs W88
+    [12,14],  // R16[7]=M96: W85 vs W87
   ],
-  // QF: W89vsW90=R16[0]vsR16[1], W91vsW92=R16[2]vsR16[3], W93vsW94=R16[4]vsR16[5], W95vsW96=R16[6]vsR16[7]
+  // QF: M97=R16[0]vsR16[1] (M89/M90), M98=R16[2]vsR16[3] (M93/M94),
+  //     M99=R16[4]vsR16[5] (M91/M92), M100=R16[6]vsR16[7] (M95/M96)
   qfPairs:  [[0,1],[2,3],[4,5],[6,7]],
-  // SF: W97vsW98=QF[0]vsQF[1], W99vsW100=QF[2]vsQF[3]
+  // SF: M101=QF[0]vsQF[1] (M97 vs M98), M102=QF[2]vsQF[3] (M99 vs M100)
   sfPairs:  [[0,1],[2,3]],
 };
 
@@ -2258,7 +2262,7 @@ function resolveBracket() {
 // Orden angular de los 16 partidos de 16avos alrededor del círculo,
 // construido para que los pares consecutivos coincidan exactamente
 // con r16Pairs / qfPairs / sfPairs (ver BRACKET_STRUCTURE).
-const BR_CIRCLE_ORDER = [1,4,0,2,3,5,6,7,10,11,8,9,13,15,12,14];
+const BR_CIRCLE_ORDER = [1,4,0,2,10,11,8,9,3,5,6,7,13,15,12,14];
 const BR_RADII = [392, 326, 258, 190, 122];
 const BR_NODE_SIZE = [15, 13.5, 12, 11, 10];
 const BR_SPIN_DUR = 60; // segundos por vuelta completa del circuito
